@@ -25,6 +25,7 @@
     ]
   },
   "url": "https://github.com/CrazyPascu/Level-Gated-Item-Choice",
+  "manifest": "https://github.com/CrazyPascu/Level-Gated-Item-Choice/releases/latest/download/module.json",
   "esmodules": [
     "scripts/main.mjs"
   ],
