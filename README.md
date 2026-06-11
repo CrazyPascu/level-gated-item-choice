@@ -2,15 +2,32 @@
 
 Adds a dnd5e advancement type named **Level-Gated Item Choice**.
 
-It behaves like dnd5e's built-in **Choose Items** advancement, but each item in the configured pool has two additional fields:
+It behaves like dnd5e's built-in **Choose Items** advancement, but each item in the configured pool has one additional field:
 
-- **From Level**: the first advancement level where the item is selectable.
-- **Until Level**: the last advancement level where the item is selectable. Leave blank for no upper limit.
+- **min**: the first advancement level where the item is selectable.
 
-Example:
+There is no per-item maximum in this version. Once an item becomes available, it remains available at later advancement levels.
 
-- Items 1–10: From Level = 1, Until Level blank.
-- Items 11–20: From Level = 2, Until Level blank.
+When you drop a new item into the pool, its `min` value inherits the previous row's `min` value. For example, if the current rows are:
+
+```text
+1
+1
+1
+1
+2
+```
+
+The next item you add will start with:
+
+```text
+2
+```
+
+## Example
+
+- Items 1–10: min = 1
+- Items 11–20: min = 2
 
 At level 1, the player sees items 1–10. At level 2, the player sees items 1–20.
 

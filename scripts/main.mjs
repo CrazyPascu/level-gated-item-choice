@@ -74,19 +74,12 @@ function buildClasses() {
       schema.pool = new ArrayField(new SchemaField({
         uuid: new StringField({ required: true, nullable: false, blank: false }),
         minLevel: new NumberField({
-          required: true,
-          integer: true,
-          min: 0,
-          initial: 1,
-          label: "LGIC.Config.MinLevel"
-        }),
-        maxLevel: new NumberField({
           required: false,
           integer: true,
           min: 0,
           nullable: true,
           initial: null,
-          label: "LGIC.Config.MaxLevel"
+          label: "LGIC.Config.MinLevel"
         })
       }));
       return schema;
@@ -97,15 +90,18 @@ function buildClasses() {
       const pool = Array.isArray(source.pool) ? source.pool : Object.values(source.pool ?? {});
 
       if ( pool.length ) {
+        let lastMin = 1;
         source.pool = pool.map(entry => {
-          if ( foundry.utils.getType(entry) === "string" ) return { uuid: entry, minLevel: 1, maxLevel: null };
+          if ( foundry.utils.getType(entry) === "string" ) return { uuid: entry, minLevel: lastMin };
 
-          const min = Number(entry.minLevel ?? 1);
-          const max = [undefined, null, ""].includes(entry.maxLevel) ? null : Number(entry.maxLevel);
+          const rawMin = entry.minLevel;
+          const min = [undefined, null, ""].includes(rawMin) ? lastMin : Number(rawMin);
+          const minLevel = Number.isFinite(min) ? min : lastMin;
+          lastMin = minLevel;
+
           return {
             uuid: entry.uuid,
-            minLevel: Number.isFinite(min) ? min : 1,
-            maxLevel: Number.isFinite(max) ? max : null
+            minLevel
           };
         });
       }
@@ -136,25 +132,36 @@ function buildClasses() {
     async _prepareContext(options) {
       const context = await super._prepareContext(options);
 
-      // Add display-only values so blank max levels render as blank inputs, not as "null".
-      context.items = context.items.map(item => ({
-        ...item,
-        minLevel: item.data.minLevel ?? 1,
-        maxLevel: item.data.maxLevel ?? ""
-      }));
+      // New pool entries inherit the previous row's minimum level. This means a sequence
+      // of 1, 1, 1, 1, 2 will make the next dropped item start at 2.
+      let lastMin = 1;
+      context.items = context.items.map(item => {
+        const rawMin = item.data.minLevel;
+        const min = [undefined, null, ""].includes(rawMin) ? lastMin : Number(rawMin);
+        const minLevel = Number.isFinite(min) ? min : lastMin;
+        lastMin = minLevel;
+
+        return {
+          ...item,
+          minLevel
+        };
+      });
 
       return context;
     }
 
     async prepareConfigurationUpdate(configuration) {
       if ( configuration.pool ) {
+        let lastMin = 1;
         configuration.pool = Object.values(configuration.pool).map(entry => {
-          const min = Number(entry.minLevel ?? 1);
-          const max = [undefined, null, ""].includes(entry.maxLevel) ? null : Number(entry.maxLevel);
+          const rawMin = entry.minLevel;
+          const min = [undefined, null, ""].includes(rawMin) ? lastMin : Number(rawMin);
+          const minLevel = Number.isFinite(min) ? min : lastMin;
+          lastMin = minLevel;
+
           return {
             uuid: entry.uuid,
-            minLevel: Number.isFinite(min) ? min : 1,
-            maxLevel: Number.isFinite(max) ? max : null
+            minLevel
           };
         });
       }
@@ -250,8 +257,7 @@ function buildClasses() {
       const numericLevel = Number(level);
       return this.configuration.pool.filter(entry => {
         const min = Number(entry.minLevel ?? 0);
-        const max = [undefined, null, ""].includes(entry.maxLevel) ? Infinity : Number(entry.maxLevel);
-        return (numericLevel >= min) && (numericLevel <= max);
+        return numericLevel >= min;
       });
     }
 

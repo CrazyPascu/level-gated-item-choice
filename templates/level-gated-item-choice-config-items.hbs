@@ -5,7 +5,6 @@
   <div class="lgic-pool-header" aria-hidden="true">
     <span></span>
     <span>min</span>
-    <span>max</span>
   </div>
 
   <ol class="items-list lgic-items-list">
@@ -18,8 +17,6 @@
         </div>
 
         <input class="lgic-level-input" type="number" name="configuration.pool.{{@index}}.minLevel" value="{{minLevel}}" min="0" step="1" aria-label="{{localize 'LGIC.Config.MinLevel'}}">
-
-        <input class="lgic-level-input" type="number" name="configuration.pool.{{@index}}.maxLevel" value="{{maxLevel}}" min="0" step="1" placeholder="{{localize 'LGIC.Config.NoMaximum'}}" aria-label="{{localize 'LGIC.Config.MaxLevel'}}">
       </li>
     {{/each}}
   </ol>
