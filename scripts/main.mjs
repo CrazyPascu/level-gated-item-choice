@@ -1,308 +1,319 @@
-import ItemChoiceAdvancement from "/systems/dnd5e/module/documents/advancement/item-choice.mjs";
-import ItemChoiceConfig from "/systems/dnd5e/module/applications/advancement/item-choice-config.mjs";
-import ItemChoiceFlow from "/systems/dnd5e/module/applications/advancement/item-choice-flow.mjs";
-import {
-  ItemChoiceConfigurationData,
-  ItemChoiceValueData
-} from "/systems/dnd5e/module/data/advancement/item-choice.mjs";
-
 const MODULE_ID = "level-gated-item-choice";
-
-// Namespaced type key. This must match the advancement class name without the "Advancement" suffix.
 const ADVANCEMENT_TYPE = "LGICLevelGatedItemChoice";
-const VALID_ITEM_TYPES = new Set(["race", "background", "class", "subclass", "feat"]);
+const VALID_ITEM_TYPES = new Set(["background", "class", "feat", "race", "subclass"]);
 
-const {
-  ArrayField,
-  NumberField,
-  SchemaField,
-  StringField
-} = foundry.data.fields;
+let CLASSES = null;
+let LAST_ERROR = null;
 
-/**
- * Item Choice configuration with per-pool-entry level gates.
- *
- * Each pool entry is:
- *   { uuid: string, minLevel: number, maxLevel: number|null }
- *
- * minLevel is inclusive. maxLevel is inclusive. Null maxLevel means "no upper limit".
- */
-class LGICLevelGatedItemChoiceConfigurationData extends ItemChoiceConfigurationData {
-  static LOCALIZATION_PREFIXES = [
-    "LGIC.Advancement",
-    ...ItemChoiceConfigurationData.LOCALIZATION_PREFIXES
-  ];
-
-  static defineSchema() {
-    const schema = super.defineSchema();
-
-    schema.pool = new ArrayField(new SchemaField({
-      uuid: new StringField({ required: true, blank: false }),
-      minLevel: new NumberField({
-        integer: true,
-        min: 0,
-        initial: 1,
-        label: "LGIC.Config.MinLevel"
-      }),
-      maxLevel: new NumberField({
-        integer: true,
-        min: 0,
-        nullable: true,
-        initial: null,
-        label: "LGIC.Config.MaxLevel"
-      })
-    }));
-
-    return schema;
-  }
-
-  static migrateData(source) {
-    super.migrateData(source);
-
-    if ( "pool" in source ) {
-      source.pool = source.pool.map(entry => {
-        if ( foundry.utils.getType(entry) === "string" ) {
-          return { uuid: entry, minLevel: 1, maxLevel: null };
-        }
-
-        return {
-          uuid: entry.uuid,
-          minLevel: Number(entry.minLevel ?? 1),
-          maxLevel: entry.maxLevel === undefined || entry.maxLevel === "" ? null : Number(entry.maxLevel)
-        };
-      });
-    }
-
-    return source;
-  }
+function t(key, data = {}) {
+  const i18n = game?.i18n;
+  if ( !i18n ) return key;
+  return Object.keys(data).length ? i18n.format(key, data) : i18n.localize(key);
 }
 
-/**
- * Config sheet: reuses the core dnd5e Item Choice config, replacing only the pool list template.
- */
-class LGICLevelGatedItemChoiceConfig extends ItemChoiceConfig {
-  static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
-    classes: ["item-choice", "three-column", "level-gated-item-choice"]
-  }, { inplace: false });
-
-  static PARTS = foundry.utils.mergeObject(super.PARTS, {
-    items: {
-      container: { classes: ["column-container"], id: "column-center" },
-      template: `modules/${MODULE_ID}/templates/level-gated-item-choice-config-items.hbs`
-    }
-  }, { inplace: false });
-
-  async prepareConfigurationUpdate(configuration) {
-    if ( configuration.pool ) {
-      configuration.pool = Object.values(configuration.pool).map(entry => {
-        const min = Number(entry.minLevel ?? 1);
-        const max = entry.maxLevel === "" || entry.maxLevel === undefined || entry.maxLevel === null
-          ? null
-          : Number(entry.maxLevel);
-
-        return {
-          uuid: entry.uuid,
-          minLevel: Number.isFinite(min) ? min : 1,
-          maxLevel: Number.isFinite(max) ? max : null
-        };
-      });
-    }
-
-    return super.prepareConfigurationUpdate(configuration);
-  }
+function log(message, ...args) {
+  console.log(`${MODULE_ID} | ${message}`, ...args);
 }
 
-/**
- * Flow sheet: filters the configured Item Choice pool to the active advancement level.
- */
-class LGICLevelGatedItemChoiceFlow extends ItemChoiceFlow {
-  async _prepareContentContext(context, options) {
-    this.pool = (
-      await Promise.all(
-        this.advancement.getPoolForLevel(this.level).map(entry => fromUuid(entry.uuid))
-      )
-    ).filter(Boolean);
-
-    context = await super._prepareContentContext(context, options);
-
-    // The core Item Choice compendium browser only understands generic item filters.
-    // For this custom advancement, choices must come from the configured level-gated pool.
-    context.showBrowseButton = false;
-
-    return context;
-  }
-
-  /** @override */
-  async _onDrop(event) {
-    if ( this.counts.full ) return false;
-
-    let data;
-    try {
-      data = JSON.parse(event.dataTransfer.getData("text/plain"));
-    } catch(err) {
-      return false;
-    }
-
-    if ( data.type !== "Item" ) return false;
-
-    const item = await Item.implementation.fromDropData(data);
-
-    try {
-      this.advancement._validateItemType(item);
-    } catch(err) {
-      ui.notifications.error(err.message);
-      return null;
-    }
-
-    const sourceUuid = item.flags.dnd5e?.sourceId ?? item.uuid;
-    const poolEntry = this.advancement.getPoolForLevel(this.level).find(entry => {
-      return (entry.uuid === item.uuid) || (entry.uuid === sourceUuid);
-    });
-
-    if ( !poolEntry ) {
-      ui.notifications.error(game.i18n.format("LGIC.Warning.Unavailable", {
-        name: item.name,
-        level: this.level
-      }));
-      return null;
-    }
-
-    const spellLevel = this.advancement.configuration.restriction.level;
-    if ( (this.advancement.configuration.type === "spell") && (spellLevel === "available") ) {
-      const maxSlot = this._maxSpellSlotLevel();
-      if ( item.system.level > maxSlot ) {
-        ui.notifications.error(game.i18n.format("DND5E.ADVANCEMENT.ItemChoice.Warning.SpellLevelAvailable", {
-          level: CONFIG.DND5E.spellLevels[maxSlot]
-        }));
-        return null;
-      }
-    }
-
-    await this.advancement.apply(this.level, { selected: [poolEntry.uuid] });
-    this.render();
-  }
+function warn(message, ...args) {
+  console.warn(`${MODULE_ID} | ${message}`, ...args);
 }
 
-/**
- * Advancement document: core Item Choice behavior plus level-gated pool filtering and apply-time validation.
- */
-class LGICLevelGatedItemChoiceAdvancement extends ItemChoiceAdvancement {
-  static get metadata() {
-    return foundry.utils.mergeObject(super.metadata, {
-      dataModels: {
-        configuration: LGICLevelGatedItemChoiceConfigurationData,
-        value: ItemChoiceValueData
-      },
-      order: 51,
-      icon: "icons/magic/symbols/cog-orange-red.webp",
-      typeIcon: "systems/dnd5e/icons/svg/item-choice.svg",
-      title: game.i18n.localize("LGIC.Advancement.Title"),
-      hint: game.i18n.localize("LGIC.Advancement.Hint"),
-      multiLevel: true,
-      apps: {
-        config: LGICLevelGatedItemChoiceConfig,
-        flow: LGICLevelGatedItemChoiceFlow
-      }
-    }, { inplace: false });
-  }
-
-  /**
-   * Return configured pool entries available at the provided advancement level.
-   * @param {number|string} level
-   * @returns {Array<{uuid: string, minLevel: number, maxLevel: number|null}>}
-   */
-  getPoolForLevel(level) {
-    const numericLevel = Number(level);
-
-    return this.configuration.pool.filter(entry => {
-      const min = Number(entry.minLevel ?? 0);
-      const max = entry.maxLevel === null || entry.maxLevel === undefined ? Infinity : Number(entry.maxLevel);
-      return (numericLevel >= min) && (numericLevel <= max);
-    });
-  }
-
-  /**
-   * Test whether a UUID is configured in the pool for this level.
-   * @param {string} uuid
-   * @param {number|string} level
-   * @returns {boolean}
-   */
-  isUuidAvailableAtLevel(uuid, level) {
-    return this.getPoolForLevel(level).some(entry => entry.uuid === uuid);
-  }
-
-  /** @override */
-  async apply(level, data = {}, options = {}) {
-    if ( data.selected?.length ) {
-      const invalid = data.selected.filter(uuid => !this.isUuidAvailableAtLevel(uuid, level));
-
-      if ( invalid.length ) {
-        throw new this.constructor.ERROR(game.i18n.format("LGIC.Warning.InvalidSelection", { level }));
-      }
-    }
-
-    return super.apply(level, data, options);
-  }
+function getNamespace() {
+  return game?.dnd5e ?? globalThis.dnd5e ?? null;
 }
 
-function isDnd5eActive() {
-  return game.system?.id === "dnd5e" || globalThis.dnd5e?.id === "dnd5e";
-}
-
-function getAdvancementTypesRegistry() {
-  return CONFIG.DND5E?.advancementTypes
-    ?? game.dnd5e?.config?.advancementTypes
-    ?? globalThis.dnd5e?.config?.advancementTypes
+function getRegistry() {
+  return CONFIG?.DND5E?.advancementTypes
+    ?? getNamespace()?.config?.advancementTypes
     ?? null;
 }
 
-function registerAdvancementType() {
-  if ( !isDnd5eActive() ) {
-    console.warn(`${MODULE_ID} | ${game.i18n?.localize?.("LGIC.Log.NotDnd5e") ?? "Active system is not dnd5e."}`);
-    return false;
-  }
+function getDnd5eParts() {
+  const dnd5e = getNamespace();
+  if ( !dnd5e ) throw new Error("The dnd5e namespace is not available yet.");
 
-  const types = getAdvancementTypesRegistry();
-  if ( !types ) {
-    console.warn(`${MODULE_ID} | ${game.i18n?.localize?.("LGIC.Log.MissingConfig") ?? "dnd5e advancement config was not available."}`);
-    return false;
-  }
+  const ItemChoiceAdvancement = dnd5e.documents?.advancement?.ItemChoiceAdvancement;
+  const ItemChoiceConfig = dnd5e.applications?.advancement?.ItemChoiceConfig;
+  const ItemChoiceFlow = dnd5e.applications?.advancement?.ItemChoiceFlow;
+  const ItemChoiceConfigurationData = dnd5e.dataModels?.advancement?.ItemChoiceConfigurationData;
+  const ItemChoiceValueData = dnd5e.dataModels?.advancement?.ItemChoiceValueData;
 
-  types[ADVANCEMENT_TYPE] = {
-    documentClass: LGICLevelGatedItemChoiceAdvancement,
-    validItemTypes: VALID_ITEM_TYPES
-  };
+  const missing = [];
+  if ( !ItemChoiceAdvancement ) missing.push("dnd5e.documents.advancement.ItemChoiceAdvancement");
+  if ( !ItemChoiceConfig ) missing.push("dnd5e.applications.advancement.ItemChoiceConfig");
+  if ( !ItemChoiceFlow ) missing.push("dnd5e.applications.advancement.ItemChoiceFlow");
+  if ( !ItemChoiceConfigurationData ) missing.push("dnd5e.dataModels.advancement.ItemChoiceConfigurationData");
+  if ( !ItemChoiceValueData ) missing.push("dnd5e.dataModels.advancement.ItemChoiceValueData");
 
-  const module = game.modules.get(MODULE_ID);
-  if ( module ) {
-    module.api = {
-      ADVANCEMENT_TYPE,
-      LGICLevelGatedItemChoiceAdvancement,
-      LGICLevelGatedItemChoiceConfig,
-      LGICLevelGatedItemChoiceFlow,
-      LGICLevelGatedItemChoiceConfigurationData
-    };
-  }
-
-  return true;
+  if ( missing.length ) throw new Error(`Missing dnd5e API parts: ${missing.join(", ")}`);
+  return { ItemChoiceAdvancement, ItemChoiceConfig, ItemChoiceFlow, ItemChoiceConfigurationData, ItemChoiceValueData };
 }
 
-// dnd5e creates CONFIG.DND5E during its own init hook. Registering against both the global dnd5e
-// config object and CONFIG.DND5E makes the module resilient to hook ordering.
-Hooks.once("init", registerAdvancementType);
-Hooks.once("setup", registerAdvancementType);
+function buildClasses() {
+  if ( CLASSES ) return CLASSES;
+
+  const {
+    ItemChoiceAdvancement,
+    ItemChoiceConfig,
+    ItemChoiceFlow,
+    ItemChoiceConfigurationData,
+    ItemChoiceValueData
+  } = getDnd5eParts();
+
+  const { ArrayField, NumberField, SchemaField, StringField } = foundry.data.fields;
+
+  class LGICLevelGatedItemChoiceConfigurationData extends ItemChoiceConfigurationData {
+    static LOCALIZATION_PREFIXES = [
+      "LGIC.Advancement",
+      ...(ItemChoiceConfigurationData.LOCALIZATION_PREFIXES ?? [])
+    ];
+
+    static defineSchema() {
+      const schema = super.defineSchema();
+      schema.pool = new ArrayField(new SchemaField({
+        uuid: new StringField({ required: true, nullable: false, blank: false }),
+        minLevel: new NumberField({
+          required: true,
+          integer: true,
+          min: 0,
+          initial: 1,
+          label: "LGIC.Config.MinLevel"
+        }),
+        maxLevel: new NumberField({
+          required: false,
+          integer: true,
+          min: 0,
+          nullable: true,
+          initial: null,
+          label: "LGIC.Config.MaxLevel"
+        })
+      }));
+      return schema;
+    }
+
+    static migrateData(source) {
+      source = super.migrateData(source) ?? source;
+      const pool = Array.isArray(source.pool) ? source.pool : Object.values(source.pool ?? {});
+
+      if ( pool.length ) {
+        source.pool = pool.map(entry => {
+          if ( foundry.utils.getType(entry) === "string" ) return { uuid: entry, minLevel: 1, maxLevel: null };
+
+          const min = Number(entry.minLevel ?? 1);
+          const max = [undefined, null, ""].includes(entry.maxLevel) ? null : Number(entry.maxLevel);
+          return {
+            uuid: entry.uuid,
+            minLevel: Number.isFinite(min) ? min : 1,
+            maxLevel: Number.isFinite(max) ? max : null
+          };
+        });
+      }
+
+      return source;
+    }
+  }
+
+  class LGICLevelGatedItemChoiceConfig extends ItemChoiceConfig {
+    static get PARTS() {
+      return foundry.utils.mergeObject(super.PARTS ?? {}, {
+        items: {
+          container: { classes: ["column-container"], id: "column-center" },
+          template: `modules/${MODULE_ID}/templates/level-gated-item-choice-config-items.hbs`
+        }
+      }, { inplace: false });
+    }
+
+    async prepareConfigurationUpdate(configuration) {
+      if ( configuration.pool ) {
+        configuration.pool = Object.values(configuration.pool).map(entry => {
+          const min = Number(entry.minLevel ?? 1);
+          const max = [undefined, null, ""].includes(entry.maxLevel) ? null : Number(entry.maxLevel);
+          return {
+            uuid: entry.uuid,
+            minLevel: Number.isFinite(min) ? min : 1,
+            maxLevel: Number.isFinite(max) ? max : null
+          };
+        });
+      }
+
+      return super.prepareConfigurationUpdate(configuration);
+    }
+  }
+
+  class LGICLevelGatedItemChoiceFlow extends ItemChoiceFlow {
+    async _prepareContentContext(context, options) {
+      this.pool = (
+        await Promise.all(this.advancement.getPoolForLevel(this.level).map(entry => fromUuid(entry.uuid)))
+      ).filter(Boolean);
+
+      context = await super._prepareContentContext(context, options);
+
+      // The core browser cannot enforce this module's per-pool-entry level gates.
+      context.showBrowseButton = false;
+      return context;
+    }
+
+    async _onDrop(event) {
+      if ( this.counts.full ) return false;
+
+      let data;
+      try {
+        data = JSON.parse(event.dataTransfer.getData("text/plain"));
+      } catch(err) {
+        return false;
+      }
+
+      if ( data.type !== "Item" ) return false;
+      const item = await Item.implementation.fromDropData(data);
+
+      try {
+        this.advancement._validateItemType(item);
+      } catch(err) {
+        ui.notifications.error(err.message);
+        return null;
+      }
+
+      const sourceUuid = item.flags.dnd5e?.sourceId ?? item.uuid;
+      const poolEntry = this.advancement.getPoolForLevel(this.level).find(entry => {
+        return (entry.uuid === item.uuid) || (entry.uuid === sourceUuid);
+      });
+
+      if ( !poolEntry ) {
+        ui.notifications.error(t("LGIC.Warning.Unavailable", { name: item.name, level: this.level }));
+        return null;
+      }
+
+      const spellLevel = this.advancement.configuration.restriction.level;
+      if ( (this.advancement.configuration.type === "spell") && (spellLevel === "available") ) {
+        const maxSlot = this._maxSpellSlotLevel();
+        if ( item.system.level > maxSlot ) {
+          ui.notifications.error(game.i18n.format("DND5E.ADVANCEMENT.ItemChoice.Warning.SpellLevelAvailable", {
+            level: CONFIG.DND5E.spellLevels[maxSlot]
+          }));
+          return null;
+        }
+      }
+
+      await this.advancement.apply(this.level, { selected: [poolEntry.uuid] });
+      this.render();
+    }
+  }
+
+  class LGICLevelGatedItemChoiceAdvancement extends ItemChoiceAdvancement {
+    static get typeName() {
+      return ADVANCEMENT_TYPE;
+    }
+
+    static get metadata() {
+      return foundry.utils.mergeObject(super.metadata, {
+        dataModels: {
+          configuration: LGICLevelGatedItemChoiceConfigurationData,
+          value: ItemChoiceValueData
+        },
+        order: 51,
+        icon: "icons/magic/symbols/cog-orange-red.webp",
+        typeIcon: "systems/dnd5e/icons/svg/item-choice.svg",
+        title: game.i18n.localize("LGIC.Advancement.Title"),
+        hint: game.i18n.localize("LGIC.Advancement.Hint"),
+        multiLevel: true,
+        apps: {
+          config: LGICLevelGatedItemChoiceConfig,
+          flow: LGICLevelGatedItemChoiceFlow
+        }
+      }, { inplace: false });
+    }
+
+    getPoolForLevel(level) {
+      const numericLevel = Number(level);
+      return this.configuration.pool.filter(entry => {
+        const min = Number(entry.minLevel ?? 0);
+        const max = [undefined, null, ""].includes(entry.maxLevel) ? Infinity : Number(entry.maxLevel);
+        return (numericLevel >= min) && (numericLevel <= max);
+      });
+    }
+
+    isUuidAvailableAtLevel(uuid, level) {
+      return this.getPoolForLevel(level).some(entry => entry.uuid === uuid);
+    }
+
+    async apply(level, data = {}, options = {}) {
+      if ( data.selected?.length ) {
+        const invalid = data.selected.filter(uuid => !this.isUuidAvailableAtLevel(uuid, level));
+        if ( invalid.length ) {
+          throw new this.constructor.ERROR(game.i18n.format("LGIC.Warning.InvalidSelection", { level }));
+        }
+      }
+
+      return super.apply(level, data, options);
+    }
+  }
+
+  CLASSES = {
+    LGICLevelGatedItemChoiceAdvancement,
+    LGICLevelGatedItemChoiceConfig,
+    LGICLevelGatedItemChoiceFlow,
+    LGICLevelGatedItemChoiceConfigurationData
+  };
+
+  return CLASSES;
+}
+
+function registerAdvancementType(phase = "unknown") {
+  try {
+    if ( game.system?.id !== "dnd5e" ) {
+      LAST_ERROR = new Error(`The active system is ${game.system?.id ?? "unknown"}, not dnd5e.`);
+      return false;
+    }
+
+    const registry = getRegistry();
+    if ( !registry ) {
+      LAST_ERROR = new Error("CONFIG.DND5E.advancementTypes is not available yet.");
+      return false;
+    }
+
+    const classes = buildClasses();
+    registry[ADVANCEMENT_TYPE] = {
+      documentClass: classes.LGICLevelGatedItemChoiceAdvancement,
+      validItemTypes: VALID_ITEM_TYPES
+    };
+
+    const module = game.modules.get(MODULE_ID);
+    if ( module ) {
+      module.api = {
+        ADVANCEMENT_TYPE,
+        VALID_ITEM_TYPES,
+        registerAdvancementType,
+        ...classes
+      };
+    }
+
+    LAST_ERROR = null;
+    log(`registered ${ADVANCEMENT_TYPE} during ${phase}`);
+    return true;
+  } catch(err) {
+    LAST_ERROR = err;
+    warn(`registration failed during ${phase}`, err);
+    return false;
+  }
+}
+
+Hooks.once("init", () => registerAdvancementType("init"));
+Hooks.once("setup", () => registerAdvancementType("setup"));
 
 Hooks.once("i18nInit", () => {
-  registerAdvancementType();
-  LGICLevelGatedItemChoiceAdvancement.localize?.();
+  if ( registerAdvancementType("i18nInit") ) {
+    CLASSES?.LGICLevelGatedItemChoiceAdvancement?.localize?.();
+  }
 });
 
 Hooks.once("ready", () => {
-  const registered = registerAdvancementType();
-  if ( !registered ) {
-    ui.notifications?.warn?.("Level-Gated Item Choice could not register. Check the browser console for details.");
+  const ok = registerAdvancementType("ready");
+  if ( ok ) {
+    ui.notifications?.info?.(t("LGIC.Notification.Registered"));
     return;
   }
 
-  console.log(`${MODULE_ID} | ${game.i18n.localize("LGIC.Log.Registered")}`);
+  ui.notifications?.error?.(t("LGIC.Notification.NotRegistered"));
+  if ( LAST_ERROR ) warn("last registration error", LAST_ERROR);
 });

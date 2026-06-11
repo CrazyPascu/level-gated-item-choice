@@ -1,17 +1,13 @@
 {
   "LGIC.Advancement.Title": "Level-Gated Item Choice",
   "LGIC.Advancement.Hint": "Choose items from a pool that expands or changes by advancement level.",
-  "LGIC.Config.PoolTitle": "Level-Gated Pool",
-  "LGIC.Config.Item": "Item",
+  "LGIC.Config.PoolHeading": "Level-Gated Item Pool",
+  "LGIC.Config.PoolHint": "Drop items into the pool as usual, then set the levels where each item is available. From Level and Until Level are inclusive. Leave Until Level blank for no upper limit.",
   "LGIC.Config.MinLevel": "From Level",
   "LGIC.Config.MaxLevel": "Until Level",
-  "LGIC.Config.MaxLevelPlaceholder": "Any",
-  "LGIC.Config.NoItems": "Drop items here to add them to the choice pool.",
-  "LGIC.Config.DropHint": "Drop an item into this list, then set the level range where it can be selected. Leave Until Level blank if it remains available forever.",
-  "LGIC.Config.ContainerWarning": "One or more selected pool items is a container. Containers may bring their own contents when granted.",
-  "LGIC.Warning.Unavailable": "{name} is not available for this advancement at level {level}.",
-  "LGIC.Warning.InvalidSelection": "One or more selected items are not available for this advancement at level {level}.",
-  "LGIC.Log.Registered": "Registered Level-Gated Item Choice advancement type.",
-  "LGIC.Log.MissingConfig": "Could not register Level-Gated Item Choice: dnd5e advancement configuration was not available.",
-  "LGIC.Log.NotDnd5e": "Level-Gated Item Choice was not registered because the active system is not dnd5e."
+  "LGIC.Config.NoMaximum": "No max",
+  "LGIC.Warning.Unavailable": "{name} is not available from this advancement at level {level}.",
+  "LGIC.Warning.InvalidSelection": "One or more selected items are not available at level {level}.",
+  "LGIC.Notification.Registered": "Level-Gated Item Choice is registered. It appears under Add Advancement on class, subclass, race, background, and feat items.",
+  "LGIC.Notification.NotRegistered": "Level-Gated Item Choice did not register. Make sure the dnd5e system is active and version 5.3.x is installed."
 }

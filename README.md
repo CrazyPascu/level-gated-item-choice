@@ -1,59 +1,39 @@
 # Level-Gated Item Choice Advancement
 
-A Foundry VTT add-on module for the dnd5e system.
+Adds a dnd5e advancement type named **Level-Gated Item Choice**.
 
-It adds a custom advancement type called **Level-Gated Item Choice**. It behaves like dnd5e's normal **Choose Items** advancement, but each item in the configured pool also has an inclusive level range:
+It behaves like dnd5e's built-in **Choose Items** advancement, but each item in the configured pool has two additional fields:
 
-- **From Level**: first advancement level where this item can be selected.
-- **Until Level**: last advancement level where this item can be selected. Leave blank for no upper limit.
+- **From Level**: the first advancement level where the item is selectable.
+- **Until Level**: the last advancement level where the item is selectable. Leave blank for no upper limit.
 
-The underlying advancement type key is namespaced as `LGICLevelGatedItemChoice` to avoid collisions with future dnd5e or module advancement types.
+Example:
 
-## Compatibility
+- Items 1–10: From Level = 1, Until Level blank.
+- Items 11–20: From Level = 2, Until Level blank.
 
-- Foundry VTT: 14.363+
-- dnd5e: 5.3.3+
+At level 1, the player sees items 1–10. At level 2, the player sees items 1–20.
 
 ## Installation
 
-1. Unzip this folder into your Foundry data folder under:
+1. Delete any old `Data/modules/level-gated-item-choice/` folder.
+2. Unzip this package into `Data/modules/` so the final path is:
+   `Data/modules/level-gated-item-choice/module.json`
+3. Restart Foundry.
+4. Enable **Level-Gated Item Choice Advancement** in Manage Modules.
+5. Reload the world.
 
-   `Data/modules/level-gated-item-choice/`
+This build shows a Foundry notification on world load. If it registers successfully, you will see:
 
-2. Restart Foundry.
-3. Enable **Level-Gated Item Choice Advancement** in your world's module settings.
-4. Open an item that supports dnd5e advancement, such as a class, subclass, race/species, background, or feat.
-5. Go to the Advancement tab and add **Level-Gated Item Choice**.
+> Level-Gated Item Choice is registered.
 
-## Example
+If you see no notification at all, the module is not being loaded by Foundry.
 
-For the behavior:
+## Compatibility
 
-- level 1: choose from items 1-10
-- level 2: choose from items 1-20
+- Foundry VTT: 14.x, verified 14.363
+- dnd5e system: 5.3.x, verified 5.3.3
 
-Configure the pool like this:
+## Notes
 
-- items 1-10: `From Level = 1`, `Until Level` blank
-- items 11-20: `From Level = 2`, `Until Level` blank
-
-Use the usual dnd5e advancement level/count controls to decide how many items can be picked at each level.
-
-## Troubleshooting
-
-Open the browser console and run:
-
-```js
-CONFIG.DND5E.advancementTypes.LGICLevelGatedItemChoice
-```
-
-If registration worked, that should return an object with a `documentClass`.
-
-If it returns `undefined`, make sure:
-
-1. the module is enabled in the world;
-2. the active system is dnd5e;
-3. the module folder is exactly `Data/modules/level-gated-item-choice/`;
-4. the browser console does not show an import error.
-
-This v0.2.0 build registers during `init`, `setup`, `i18nInit`, and `ready` so it is resilient to dnd5e hook ordering.
+The compendium browser button is hidden for this advancement type because the core dnd5e item browser does not know this module's per-item level gates. Use the configured pool instead.

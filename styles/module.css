@@ -1,34 +1,33 @@
-.level-gated-item-choice .lgic-pool-list {
+.level-gated-item-choice .lgic-pool {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-}
-
-.level-gated-item-choice .lgic-pool-item {
-  display: grid;
-  grid-template-columns: minmax(10rem, 1fr) 5rem 5rem 2rem;
-  align-items: center;
   gap: 0.5rem;
 }
 
-.level-gated-item-choice .lgic-pool-header {
-  font-weight: 700;
-  border-bottom: 1px solid var(--color-border-light-primary, #999);
-  padding-bottom: 0.25rem;
-}
-
-.level-gated-item-choice .lgic-number {
-  width: 100%;
-  text-align: center;
-}
-
-.level-gated-item-choice .lgic-delete {
-  width: 2rem;
-  height: 2rem;
+.level-gated-item-choice .lgic-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
   padding: 0;
 }
 
-.level-gated-item-choice .lgic-empty,
-.level-gated-item-choice .lgic-hint {
-  margin-top: 0.5rem;
+.level-gated-item-choice .lgic-item {
+  display: grid;
+  grid-template-columns: 1fr 7rem 7rem;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem;
+}
+
+.level-gated-item-choice .lgic-item-link {
+  min-width: 0;
+}
+
+.level-gated-item-choice .lgic-level-field {
+  margin: 0;
+}
+
+.level-gated-item-choice .lgic-level-field label {
+  font-size: var(--font-size-12, 12px);
 }
