@@ -1,6 +1,13 @@
 const MODULE_ID = "level-gated-item-choice";
 const ADVANCEMENT_TYPE = "LGICLevelGatedItemChoice";
 const VALID_ITEM_TYPES = new Set(["background", "class", "feat", "race", "subclass"]);
+const MAX_SECTION_LEVEL = 20;
+
+function clampLevel(value, maxLevel = MAX_SECTION_LEVEL) {
+  const numeric = Number(value);
+  if ( !Number.isFinite(numeric) ) return 1;
+  return Math.min(Math.max(Math.trunc(numeric), 1), maxLevel);
+}
 
 let CLASSES = null;
 let LAST_ERROR = null;
@@ -113,10 +120,10 @@ function buildClasses() {
   class LGICLevelGatedItemChoiceConfig extends ItemChoiceConfig {
     static get DEFAULT_OPTIONS() {
       const base = super.DEFAULT_OPTIONS ?? {};
-      const classes = [...new Set([...(base.classes ?? []), "level-gated-item-choice"])];
+      const classes = [...new Set([...(base.classes ?? []), "level-gated-item-choice"])] ;
       return foundry.utils.mergeObject(base, {
         classes,
-        position: { width: 840 }
+        position: { width: 980 }
       }, { inplace: false });
     }
 
@@ -131,33 +138,45 @@ function buildClasses() {
 
     async _prepareContext(options) {
       const context = await super._prepareContext(options);
+      const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
+      const sections = new Map();
 
-      // New pool entries inherit the previous row's minimum level. This means a sequence
-      // of 1, 1, 1, 1, 2 will make the next dropped item start at 2.
-      let lastMin = 1;
-      context.items = context.items.map(item => {
+      for ( let level = 1; level <= maxLevel; level++ ) {
+        sections.set(level, {
+          level,
+          label: t("LGIC.Config.LevelLabel", { level }),
+          dropLabel: t("LGIC.Config.DropHere", { level }),
+          items: []
+        });
+      }
+
+      context.items = context.items.map((item, index) => {
         const rawMin = item.data.minLevel;
-        const min = [undefined, null, ""].includes(rawMin) ? lastMin : Number(rawMin);
-        const minLevel = Number.isFinite(min) ? min : lastMin;
-        lastMin = minLevel;
+        const min = [undefined, null, ""].includes(rawMin) ? 1 : Number(rawMin);
+        const minLevel = clampLevel(Number.isFinite(min) ? min : 1, maxLevel);
 
         return {
           ...item,
+          poolIndex: index,
           minLevel
         };
       });
 
+      for ( const item of context.items ) {
+        sections.get(item.minLevel)?.items.push(item);
+      }
+
+      context.levelSections = Array.from(sections.values());
       return context;
     }
 
     async prepareConfigurationUpdate(configuration) {
       if ( configuration.pool ) {
-        let lastMin = 1;
+        const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
         configuration.pool = Object.values(configuration.pool).map(entry => {
           const rawMin = entry.minLevel;
-          const min = [undefined, null, ""].includes(rawMin) ? lastMin : Number(rawMin);
-          const minLevel = Number.isFinite(min) ? min : lastMin;
-          lastMin = minLevel;
+          const min = [undefined, null, ""].includes(rawMin) ? 1 : Number(rawMin);
+          const minLevel = clampLevel(Number.isFinite(min) ? min : 1, maxLevel);
 
           return {
             uuid: entry.uuid,
@@ -167,6 +186,71 @@ function buildClasses() {
       }
 
       return super.prepareConfigurationUpdate(configuration);
+    }
+
+    async _onRender(context, options) {
+      await super._onRender(context, options);
+      if ( !this.isEditable ) return;
+
+      for ( const zone of this.element.querySelectorAll("[data-lgic-level]") ) {
+        zone.addEventListener("dragenter", () => zone.classList.add("lgic-drop-active"));
+        zone.addEventListener("dragover", event => {
+          event.preventDefault();
+          zone.classList.add("lgic-drop-active");
+        });
+        zone.addEventListener("dragleave", event => {
+          if ( !zone.contains(event.relatedTarget) ) zone.classList.remove("lgic-drop-active");
+        });
+        zone.addEventListener("drop", () => zone.classList.remove("lgic-drop-active"));
+      }
+    }
+
+    async _onDragStart(event) {
+      const row = event.target.closest?.("[data-item-uuid]");
+      const uuid = row?.dataset.itemUuid;
+      if ( !uuid ) return;
+
+      event.dataTransfer.setData("text/plain", JSON.stringify({ type: "Item", uuid }));
+      event.dataTransfer.effectAllowed = "move";
+    }
+
+    async _onDrop(event) {
+      const levelSection = event.target.closest?.("[data-lgic-level]");
+      if ( !levelSection ) {
+        ui.notifications.warn(t("LGIC.Warning.DropOnLevel"));
+        return;
+      }
+
+      const minLevel = Number(levelSection.dataset.lgicLevel);
+      if ( !Number.isFinite(minLevel) ) return;
+
+      const data = foundry.applications.ux.TextEditor.implementation.getDragEventData(event);
+      if ( data?.type !== "Item" ) return;
+
+      const item = await Item.implementation.fromDropData(data);
+      try {
+        this._validateDroppedItem(event, item);
+      } catch(err) {
+        ui.notifications.error(err.message);
+        return;
+      }
+
+      if ( item.uuid === this.item.uuid ) {
+        ui.notifications.error("DND5E.ADVANCEMENT.ItemGrant.Warning.Recursive", { localize: true });
+        return;
+      }
+
+      const existingItems = foundry.utils.deepClone(this.advancement.configuration.pool ?? []);
+      const existingIndex = existingItems.findIndex(entry => entry.uuid === item.uuid);
+
+      if ( existingIndex >= 0 ) {
+        existingItems[existingIndex].minLevel = minLevel;
+        ui.notifications.info(t("LGIC.Notification.Moved", { name: item.name, level: minLevel }));
+      } else {
+        existingItems.push({ uuid: item.uuid, minLevel });
+      }
+
+      await this.submit({ updateData: { "configuration.pool": existingItems } });
     }
   }
 

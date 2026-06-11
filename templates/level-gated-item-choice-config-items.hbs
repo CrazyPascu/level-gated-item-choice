@@ -2,22 +2,39 @@
   <h3>{{localize "LGIC.Config.PoolHeading"}}</h3>
   <p class="hint">{{localize "LGIC.Config.PoolHint"}}</p>
 
-  <div class="lgic-pool-header" aria-hidden="true">
-    <span></span>
-    <span>min</span>
+  <div class="lgic-level-grid">
+    {{#each levelSections}}
+      <section class="lgic-level-section" data-lgic-level="{{level}}">
+        <header class="lgic-level-header">
+          <span class="lgic-level-title">{{label}}</span>
+          <span class="lgic-level-count">{{items.length}}</span>
+        </header>
+
+        <ol class="items-list lgic-items-list">
+          {{#each items}}
+            <li class="item lgic-item draggable" draggable="true" data-index="{{poolIndex}}" data-item-uuid="{{data.uuid}}">
+              <input type="hidden" name="configuration.pool.{{poolIndex}}.uuid" value="{{data.uuid}}">
+              <input type="hidden" name="configuration.pool.{{poolIndex}}.minLevel" value="{{minLevel}}">
+
+              <div class="lgic-item-link">
+                {{{ dnd5e-linkForUuid data.uuid renderBroken=true }}}
+              </div>
+
+              <button type="button" class="unbutton control-button lgic-delete" data-action="deleteItem" data-tooltip="DND5E.Delete">
+                <i class="fa-solid fa-trash" inert></i>
+              </button>
+            </li>
+          {{/each}}
+        </ol>
+
+        <div class="lgic-drop-hint">
+          {{dropLabel}}
+        </div>
+      </section>
+    {{/each}}
   </div>
 
-  <ol class="items-list lgic-items-list">
-    {{#each items}}
-      <li class="item lgic-item" data-index="{{@index}}" data-item-uuid="{{data.uuid}}">
-        <input type="hidden" name="configuration.pool.{{@index}}.uuid" value="{{data.uuid}}">
-
-        <div class="lgic-item-link">
-          {{{ dnd5e-linkForUuid data.uuid renderBroken=true }}}
-        </div>
-
-        <input class="lgic-level-input" type="number" name="configuration.pool.{{@index}}.minLevel" value="{{minLevel}}" min="0" step="1" aria-label="{{localize 'LGIC.Config.MinLevel'}}">
-      </li>
-    {{/each}}
-  </ol>
+  {{#if showContainerWarning}}
+    <p class="hint warning">{{localize "DND5E.ADVANCEMENT.ItemGrant.Warning.Container"}}</p>
+  {{/if}}
 </div>
