@@ -2,24 +2,24 @@
   <h3>{{localize "LGIC.Config.PoolHeading"}}</h3>
   <p class="hint">{{localize "LGIC.Config.PoolHint"}}</p>
 
+  <div class="lgic-pool-header" aria-hidden="true">
+    <span></span>
+    <span>min</span>
+    <span>max</span>
+  </div>
+
   <ol class="items-list lgic-items-list">
     {{#each items}}
-      <li class="item lgic-item" data-index="{{@index}}">
-        <input type="hidden" name="pool.{{@index}}.uuid" value="{{data.uuid}}">
+      <li class="item lgic-item" data-index="{{@index}}" data-item-uuid="{{data.uuid}}">
+        <input type="hidden" name="configuration.pool.{{@index}}.uuid" value="{{data.uuid}}">
 
         <div class="lgic-item-link">
           {{{ dnd5e-linkForUuid data.uuid renderBroken=true }}}
         </div>
 
-        <div class="form-group lgic-level-field">
-          <label>{{localize "LGIC.Config.MinLevel"}}</label>
-          <input type="number" name="pool.{{@index}}.minLevel" value="{{data.minLevel}}" min="0" step="1">
-        </div>
+        <input class="lgic-level-input" type="number" name="configuration.pool.{{@index}}.minLevel" value="{{minLevel}}" min="0" step="1" aria-label="{{localize 'LGIC.Config.MinLevel'}}">
 
-        <div class="form-group lgic-level-field">
-          <label>{{localize "LGIC.Config.MaxLevel"}}</label>
-          <input type="number" name="pool.{{@index}}.maxLevel" value="{{data.maxLevel}}" min="0" step="1" placeholder="{{localize 'LGIC.Config.NoMaximum'}}">
-        </div>
+        <input class="lgic-level-input" type="number" name="configuration.pool.{{@index}}.maxLevel" value="{{maxLevel}}" min="0" step="1" placeholder="{{localize 'LGIC.Config.NoMaximum'}}" aria-label="{{localize 'LGIC.Config.MaxLevel'}}">
       </li>
     {{/each}}
   </ol>

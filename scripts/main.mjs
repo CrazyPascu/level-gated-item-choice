@@ -115,6 +115,15 @@ function buildClasses() {
   }
 
   class LGICLevelGatedItemChoiceConfig extends ItemChoiceConfig {
+    static get DEFAULT_OPTIONS() {
+      const base = super.DEFAULT_OPTIONS ?? {};
+      const classes = [...new Set([...(base.classes ?? []), "level-gated-item-choice"])];
+      return foundry.utils.mergeObject(base, {
+        classes,
+        position: { width: 840 }
+      }, { inplace: false });
+    }
+
     static get PARTS() {
       return foundry.utils.mergeObject(super.PARTS ?? {}, {
         items: {
@@ -122,6 +131,19 @@ function buildClasses() {
           template: `modules/${MODULE_ID}/templates/level-gated-item-choice-config-items.hbs`
         }
       }, { inplace: false });
+    }
+
+    async _prepareContext(options) {
+      const context = await super._prepareContext(options);
+
+      // Add display-only values so blank max levels render as blank inputs, not as "null".
+      context.items = context.items.map(item => ({
+        ...item,
+        minLevel: item.data.minLevel ?? 1,
+        maxLevel: item.data.maxLevel ?? ""
+      }));
+
+      return context;
     }
 
     async prepareConfigurationUpdate(configuration) {
