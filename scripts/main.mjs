@@ -136,9 +136,40 @@ function buildClasses() {
       }, { inplace: false });
     }
 
+    get collapseStorageKey() {
+      const itemKey = this.item?.uuid ?? this.item?.id ?? "item";
+      const advancementKey = this.advancement?.id ?? this.advancement?._id ?? "advancement";
+      return `${MODULE_ID}.collapsed-levels.${itemKey}.${advancementKey}`;
+    }
+
+    loadCollapsedLevels() {
+      if ( this._collapsedLevels instanceof Set ) return this._collapsedLevels;
+      try {
+        const stored = JSON.parse(localStorage.getItem(this.collapseStorageKey) ?? "[]");
+        this._collapsedLevels = new Set(Array.isArray(stored) ? stored.map(String) : []);
+      } catch(err) {
+        this._collapsedLevels = new Set();
+      }
+      return this._collapsedLevels;
+    }
+
+    saveCollapsedLevels() {
+      if ( !(this._collapsedLevels instanceof Set) ) return;
+      localStorage.setItem(this.collapseStorageKey, JSON.stringify(Array.from(this._collapsedLevels)));
+    }
+
+    setLevelCollapsed(level, collapsed) {
+      const collapsedLevels = this.loadCollapsedLevels();
+      const key = String(level);
+      if ( collapsed ) collapsedLevels.add(key);
+      else collapsedLevels.delete(key);
+      this.saveCollapsedLevels();
+    }
+
     async _prepareContext(options) {
       const context = await super._prepareContext(options);
       const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
+      const collapsedLevels = this.loadCollapsedLevels();
       const sections = new Map();
 
       for ( let level = 1; level <= maxLevel; level++ ) {
@@ -146,6 +177,7 @@ function buildClasses() {
           level,
           label: t("LGIC.Config.LevelLabel", { level }),
           dropLabel: t("LGIC.Config.DropHere", { level }),
+          open: !collapsedLevels.has(String(level)),
           items: []
         });
       }
@@ -193,6 +225,10 @@ function buildClasses() {
       if ( !this.isEditable ) return;
 
       for ( const zone of this.element.querySelectorAll("[data-lgic-level]") ) {
+        zone.addEventListener("toggle", () => {
+          this.setLevelCollapsed(zone.dataset.lgicLevel, !zone.open);
+        });
+
         zone.addEventListener("dragenter", () => zone.classList.add("lgic-drop-active"));
         zone.addEventListener("dragover", event => {
           event.preventDefault();
@@ -223,6 +259,11 @@ function buildClasses() {
 
       const minLevel = Number(levelSection.dataset.lgicLevel);
       if ( !Number.isFinite(minLevel) ) return;
+
+      if ( "open" in levelSection ) {
+        levelSection.open = true;
+        this.setLevelCollapsed(minLevel, false);
+      }
 
       const data = foundry.applications.ux.TextEditor.implementation.getDragEventData(event);
       if ( data?.type !== "Item" ) return;

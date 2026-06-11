@@ -2,7 +2,7 @@
   "LGIC.Advancement.Title": "Level-Gated Item Choice",
   "LGIC.Advancement.Hint": "Choose items from a pool that expands by advancement level.",
   "LGIC.Config.PoolHeading": "Level-Gated Item Pool",
-  "LGIC.Config.PoolHint": "Drop each item into the level section where it first becomes available. Drag an item to another section to change its level.",
+  "LGIC.Config.PoolHint": "Drop each item into the level section where it first becomes available. Click a level header to collapse or expand it.",
   "LGIC.Config.MinLevel": "Minimum Level",
   "LGIC.Config.LevelLabel": "Level {level}",
   "LGIC.Config.DropHere": "Drop here for level {level}+",

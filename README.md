@@ -14,7 +14,7 @@ In the advancement configuration window, the item pool is divided into level dro
 
 Once an item becomes available, it remains available at later levels.
 
-You can also drag an item that is already in the pool from one level section to another section to change when it becomes available.
+You can also drag an item that is already in the pool from one level section to another section to change when it becomes available. Click a level header to collapse or expand that section; the arrow on the right shows whether it is open or closed.
 
 ## Example
 

@@ -4,12 +4,16 @@
 
   <div class="lgic-level-grid">
     {{#each levelSections}}
-      <section class="lgic-level-section" data-lgic-level="{{level}}">
-        <header class="lgic-level-header">
+      <details class="lgic-level-section" data-lgic-level="{{level}}" {{#if open}}open{{/if}}>
+        <summary class="lgic-level-header">
           <span class="lgic-level-title">{{label}}</span>
-          <span class="lgic-level-count">{{items.length}}</span>
-        </header>
+          <span class="lgic-level-header-right">
+            <span class="lgic-level-count">{{items.length}}</span>
+            <i class="fa-solid fa-chevron-down lgic-toggle-icon" inert></i>
+          </span>
+        </summary>
 
+        <div class="lgic-level-body">
         <ol class="items-list lgic-items-list">
           {{#each items}}
             <li class="item lgic-item draggable" draggable="true" data-index="{{poolIndex}}" data-item-uuid="{{data.uuid}}">
@@ -30,7 +34,8 @@
         <div class="lgic-drop-hint">
           {{dropLabel}}
         </div>
-      </section>
+        </div>
+      </details>
     {{/each}}
   </div>
 
