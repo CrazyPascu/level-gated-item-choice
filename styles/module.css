@@ -1,0 +1,34 @@
+.level-gated-item-choice .lgic-pool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.level-gated-item-choice .lgic-pool-item {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) 5rem 5rem 2rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.level-gated-item-choice .lgic-pool-header {
+  font-weight: 700;
+  border-bottom: 1px solid var(--color-border-light-primary, #999);
+  padding-bottom: 0.25rem;
+}
+
+.level-gated-item-choice .lgic-number {
+  width: 100%;
+  text-align: center;
+}
+
+.level-gated-item-choice .lgic-delete {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.level-gated-item-choice .lgic-empty,
+.level-gated-item-choice .lgic-hint {
+  margin-top: 0.5rem;
+}

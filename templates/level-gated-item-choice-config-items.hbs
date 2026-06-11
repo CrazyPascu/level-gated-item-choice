@@ -1,0 +1,57 @@
+<section class="level-gated-item-choice" data-application-part="items">
+  <h3>{{localize "LGIC.Config.PoolTitle"}}</h3>
+
+  <div class="lgic-pool-list">
+    <div class="lgic-pool-item lgic-pool-header">
+      <span>{{localize "LGIC.Config.Item"}}</span>
+      <span>{{localize "LGIC.Config.MinLevel"}}</span>
+      <span>{{localize "LGIC.Config.MaxLevel"}}</span>
+      <span></span>
+    </div>
+
+    {{#each items}}
+      <div class="lgic-pool-item" data-item-uuid="{{data.uuid}}">
+        <input type="hidden" name="configuration.pool.{{@index}}.uuid" value="{{data.uuid}}">
+
+        <div class="lgic-item-link">
+          {{{dnd5e-linkForUuid data.uuid renderBroken=true}}}
+        </div>
+
+        <input
+          class="lgic-number"
+          type="number"
+          name="configuration.pool.{{@index}}.minLevel"
+          value="{{data.minLevel}}"
+          min="0"
+          step="1"
+        >
+
+        <input
+          class="lgic-number"
+          type="number"
+          name="configuration.pool.{{@index}}.maxLevel"
+          value="{{data.maxLevel}}"
+          min="0"
+          step="1"
+          placeholder="{{localize 'LGIC.Config.MaxLevelPlaceholder'}}"
+        >
+
+        <button
+          class="lgic-delete icon fa-solid fa-trash"
+          type="button"
+          data-action="deleteItem"
+          aria-label="{{localize 'Delete'}}"
+          title="{{localize 'Delete'}}"
+        ></button>
+      </div>
+    {{else}}
+      <p class="lgic-empty hint">{{localize "LGIC.Config.NoItems"}}</p>
+    {{/each}}
+  </div>
+
+  {{#if showContainerWarning}}
+    <p class="notification warning">{{localize "LGIC.Config.ContainerWarning"}}</p>
+  {{/if}}
+
+  <p class="lgic-hint hint">{{localize "LGIC.Config.DropHint"}}</p>
+</section>

@@ -1,0 +1,42 @@
+{
+  "id": "level-gated-item-choice",
+  "title": "Level-Gated Item Choice Advancement",
+  "description": "Adds a D&D 5e advancement type where each advancement level controls both how many items can be selected and which items are available.",
+  "version": "0.1.0",
+  "authors": [
+    {
+      "name": "CrazyPasci"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14.363",
+    "verified": "14.363"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "5.3.3",
+          "verified": "5.3.3"
+        }
+      }
+    ]
+  },
+  "url": "https://github.com/CrazyPascu/Level-Gated-Item-Choice",
+  "esmodules": [
+    "scripts/main.mjs"
+  ],
+  "styles": [
+    "styles/module.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "readme": "README.md"
+}
