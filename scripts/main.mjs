@@ -12,6 +12,18 @@ function clampLevel(value, maxLevel = MAX_SECTION_LEVEL) {
 let CLASSES = null;
 let LAST_ERROR = null;
 
+function lgicSortItemsByName(items) {
+  return items.sort((a, b) => {
+    const nameA = String(a.item?.name ?? a.name ?? a.label ?? a.uuid ?? "");
+    const nameB = String(b.item?.name ?? b.name ?? b.label ?? b.uuid ?? "");
+
+    return nameA.localeCompare(nameB, game.i18n.lang, {
+      sensitivity: "base",
+      numeric: true
+    });
+  });
+}
+
 function t(key, data = {}) {
   const i18n = game?.i18n;
   if ( !i18n ) return key;
@@ -165,7 +177,7 @@ function buildClasses() {
       else collapsedLevels.delete(key);
       this.saveCollapsedLevels();
     }
-
+    
     async _prepareContext(options) {
       const context = await super._prepareContext(options);
       const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
@@ -199,6 +211,11 @@ function buildClasses() {
       }
 
       context.levelSections = Array.from(sections.values());
+
+      for ( const section of context.levelSections ) {
+        lgicSortItemsByName(section.items);
+      }
+
       return context;
     }
 
