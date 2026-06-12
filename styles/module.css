@@ -178,3 +178,25 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.level-gated-item-choice .lgic-pool-link-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-radius: 5px;
+  background: #ff00001a;
+}
+
+.level-gated-item-choice .lgic-pool-link-settings .form-group {
+  margin: 0;
+}
+
+.level-gated-item-choice .lgic-pool-link-settings .form-fields {
+  flex: 1;
+}
+
+.level-gated-item-choice .lgic-pool-link-settings input,
+.level-gated-item-choice .lgic-pool-link-settings select {
+  width: 100%;
+}

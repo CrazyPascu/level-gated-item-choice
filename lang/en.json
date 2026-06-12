@@ -10,6 +10,15 @@
   "LGIC.Warning.Unavailable": "{name} is not available from this advancement at level {level}.",
   "LGIC.Warning.InvalidSelection": "One or more selected items are not available at level {level}.",
   "LGIC.Notification.Moved": "{name} now starts at level {level}.",
-  "LGIC.Notification.Registered": "Level-Gated Item Choice is registered. It appears under Add Advancement on class, subclass, race, background, and feat items.",
-  "LGIC.Notification.NotRegistered": "Level-Gated Item Choice did not register. Make sure the dnd5e system is active and version 5.3.x is installed."
+  "LGIC.Notification.Registered": "Level-Gated Item Choice is registered. Parent pools can receive child pools by matching Pool ID / Parent Pool ID.",
+  "LGIC.Notification.NotRegistered": "Level-Gated Item Choice did not register. Make sure the dnd5e system is active and version 5.3.x is installed.",
+  "LGIC.Config.PoolRole": "Pool Role",
+  "LGIC.Config.PoolRoleHint": "Standalone uses only this pool. Parent receives child pools that target its Pool ID. Child contributes its pool to a parent and does not create its own selection flow.",
+  "LGIC.Config.PoolRoleStandalone": "Standalone",
+  "LGIC.Config.PoolRoleParent": "Parent / Main Pool",
+  "LGIC.Config.PoolRoleChild": "Child / Contribute to Parent",
+  "LGIC.Config.PoolId": "Pool ID",
+  "LGIC.Config.PoolIdHint": "For a parent pool, set the ID that child pools should target. Leave blank for standalone pools.",
+  "LGIC.Config.ParentPoolId": "Parent Pool ID",
+  "LGIC.Config.ParentPoolIdHint": "For a child pool, enter the parent Pool ID to merge into. Child advancements do not prompt for choices."
 }

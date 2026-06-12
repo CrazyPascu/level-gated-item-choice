@@ -17,12 +17,79 @@ function lgicSortItemsByName(items) {
     const nameA = String(a.item?.name ?? a.name ?? a.label ?? a.uuid ?? "");
     const nameB = String(b.item?.name ?? b.name ?? b.label ?? b.uuid ?? "");
 
-    return nameA.localeCompare(nameB, game.i18n.lang, {
+    return nameB.localeCompare(nameA, game.i18n.lang, {
       sensitivity: "base",
       numeric: true
     });
   });
 }
+
+function lgicNormalizePoolRole(value) {
+  return ["standalone", "parent", "child"].includes(value) ? value : "standalone";
+}
+
+function lgicCleanPoolId(value) {
+  return String(value ?? "").trim();
+}
+
+function lgicGetAdvancementId(advancement) {
+  return advancement?.id ?? advancement?._id ?? advancement?.data?._id ?? advancement?.toObject?.()?._id ?? null;
+}
+
+function lgicGetAdvancementType(advancement) {
+  return advancement?.type ?? advancement?.constructor?.typeName ?? advancement?.data?.type ?? advancement?.toObject?.()?.type ?? null;
+}
+
+function lgicGetAdvancementConfiguration(advancement) {
+  return advancement?.configuration ?? advancement?.data?.configuration ?? advancement?.toObject?.()?.configuration ?? {};
+}
+
+function lgicGetAdvancementPool(advancement) {
+  const pool = lgicGetAdvancementConfiguration(advancement).pool ?? [];
+  return Array.isArray(pool) ? pool : Object.values(pool);
+}
+
+function lgicGetItemAdvancements(item) {
+  const advancements = item?.system?.advancement;
+  if ( !advancements ) return [];
+
+  if ( Array.isArray(advancements) ) return advancements;
+  if ( typeof advancements.values === "function" ) return Array.from(advancements.values());
+
+  return Object.values(advancements);
+}
+
+function lgicNormalizePoolEntry(entry, maxLevel = MAX_SECTION_LEVEL) {
+  if ( !entry?.uuid ) return null;
+
+  const rawMin = entry.minLevel;
+  const min = [undefined, null, ""].includes(rawMin) ? 1 : Number(rawMin);
+
+  return {
+    uuid: entry.uuid,
+    minLevel: clampLevel(Number.isFinite(min) ? min : 1, maxLevel)
+  };
+}
+
+function lgicMergePools(pools, maxLevel = MAX_SECTION_LEVEL) {
+  const merged = new Map();
+
+  for ( const pool of pools ) {
+    for ( const rawEntry of pool ?? [] ) {
+      const entry = lgicNormalizePoolEntry(rawEntry, maxLevel);
+      if ( !entry ) continue;
+
+      const existing = merged.get(entry.uuid);
+      if ( existing ) existing.minLevel = Math.min(existing.minLevel, entry.minLevel);
+      else merged.set(entry.uuid, entry);
+    }
+  }
+
+  return Array.from(merged.values()).sort((a, b) => {
+    return (a.minLevel - b.minLevel) || a.uuid.localeCompare(b.uuid);
+  });
+}
+
 
 function t(key, data = {}) {
   const i18n = game?.i18n;
@@ -101,6 +168,31 @@ function buildClasses() {
           label: "LGIC.Config.MinLevel"
         })
       }));
+
+      schema.poolRole = new StringField({
+        required: false,
+        nullable: false,
+        blank: false,
+        initial: "standalone",
+        label: "LGIC.Config.PoolRole"
+      });
+
+      schema.poolId = new StringField({
+        required: false,
+        nullable: false,
+        blank: true,
+        initial: "",
+        label: "LGIC.Config.PoolId"
+      });
+
+      schema.parentPoolId = new StringField({
+        required: false,
+        nullable: false,
+        blank: true,
+        initial: "",
+        label: "LGIC.Config.ParentPoolId"
+      });
+
       return schema;
     }
 
@@ -124,6 +216,10 @@ function buildClasses() {
           };
         });
       }
+
+      source.poolRole = lgicNormalizePoolRole(source.poolRole);
+      source.poolId = lgicCleanPoolId(source.poolId);
+      source.parentPoolId = lgicCleanPoolId(source.parentPoolId);
 
       return source;
     }
@@ -177,7 +273,7 @@ function buildClasses() {
       else collapsedLevels.delete(key);
       this.saveCollapsedLevels();
     }
-    
+
     async _prepareContext(options) {
       const context = await super._prepareContext(options);
       const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
@@ -194,8 +290,8 @@ function buildClasses() {
         });
       }
 
-      context.items = context.items.map((item, index) => {
-        const rawMin = item.data.minLevel;
+      context.items = (context.items ?? []).map((item, index) => {
+        const rawMin = item.data?.minLevel;
         const min = [undefined, null, ""].includes(rawMin) ? 1 : Number(rawMin);
         const minLevel = clampLevel(Number.isFinite(min) ? min : 1, maxLevel);
 
@@ -216,6 +312,16 @@ function buildClasses() {
         lgicSortItemsByName(section.items);
       }
 
+      const poolRole = lgicNormalizePoolRole(this.advancement.configuration.poolRole);
+      context.poolRole = poolRole;
+      context.poolId = this.advancement.configuration.poolId ?? "";
+      context.parentPoolId = this.advancement.configuration.parentPoolId ?? "";
+      context.poolRoleOptions = [
+        { value: "standalone", label: t("LGIC.Config.PoolRoleStandalone"), selected: poolRole === "standalone" },
+        { value: "parent", label: t("LGIC.Config.PoolRoleParent"), selected: poolRole === "parent" },
+        { value: "child", label: t("LGIC.Config.PoolRoleChild"), selected: poolRole === "child" }
+      ];
+
       return context;
     }
 
@@ -233,6 +339,10 @@ function buildClasses() {
           };
         });
       }
+
+      configuration.poolRole = lgicNormalizePoolRole(configuration.poolRole);
+      configuration.poolId = lgicCleanPoolId(configuration.poolId);
+      configuration.parentPoolId = lgicCleanPoolId(configuration.parentPoolId);
 
       return super.prepareConfigurationUpdate(configuration);
     }
@@ -314,9 +424,13 @@ function buildClasses() {
 
   class LGICLevelGatedItemChoiceFlow extends ItemChoiceFlow {
     async _prepareContentContext(context, options) {
-      this.pool = (
-        await Promise.all(this.advancement.getPoolForLevel(this.level).map(entry => fromUuid(entry.uuid)))
-      ).filter(Boolean);
+      if ( this.advancement.isPoolChild ) {
+        this.pool = [];
+      } else {
+        this.pool = (
+          await Promise.all(this.advancement.getPoolForLevel(this.level).map(entry => fromUuid(entry.uuid)))
+        ).filter(Boolean);
+      }
 
       context = await super._prepareContentContext(context, options);
 
@@ -395,9 +509,76 @@ function buildClasses() {
       }, { inplace: false });
     }
 
+    get poolRole() {
+      return lgicNormalizePoolRole(this.configuration.poolRole);
+    }
+
+    get isPoolParent() {
+      return this.poolRole === "parent";
+    }
+
+    get isPoolChild() {
+      return this.poolRole === "child";
+    }
+
+    get poolId() {
+      return lgicCleanPoolId(this.configuration.poolId);
+    }
+
+    get parentPoolId() {
+      return lgicCleanPoolId(this.configuration.parentPoolId);
+    }
+
+    get levels() {
+      if ( this.isPoolChild ) return [];
+      return super.levels;
+    }
+
+    configuredForLevel(level) {
+      if ( this.isPoolChild ) return true;
+      return super.configuredForLevel(level);
+    }
+
+    getLinkedChildAdvancements() {
+      if ( !this.isPoolParent || !this.poolId || !this.actor ) return [];
+
+      const children = [];
+      const currentId = lgicGetAdvancementId(this);
+
+      for ( const item of this.actor.items ?? [] ) {
+        for ( const advancement of lgicGetItemAdvancements(item) ) {
+          if ( lgicGetAdvancementType(advancement) !== ADVANCEMENT_TYPE ) continue;
+          if ( lgicGetAdvancementId(advancement) === currentId ) continue;
+
+          const configuration = lgicGetAdvancementConfiguration(advancement);
+          if ( lgicNormalizePoolRole(configuration.poolRole) !== "child" ) continue;
+          if ( lgicCleanPoolId(configuration.parentPoolId) !== this.poolId ) continue;
+
+          children.push(advancement);
+        }
+      }
+
+      return children;
+    }
+
+    getMergedPool() {
+      const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
+      const pools = [this.configuration.pool ?? []];
+
+      if ( this.isPoolParent ) {
+        for ( const child of this.getLinkedChildAdvancements() ) {
+          pools.push(lgicGetAdvancementPool(child));
+        }
+      }
+
+      return lgicMergePools(pools, maxLevel);
+    }
+
     getPoolForLevel(level) {
+      if ( this.isPoolChild ) return [];
+
       const numericLevel = Number(level);
-      return this.configuration.pool.filter(entry => {
+      return this.getMergedPool().filter(entry => {
         const min = Number(entry.minLevel ?? 0);
         return numericLevel >= min;
       });
@@ -408,6 +589,8 @@ function buildClasses() {
     }
 
     async apply(level, data = {}, options = {}) {
+      if ( this.isPoolChild ) return;
+
       if ( data.selected?.length ) {
         const invalid = data.selected.filter(uuid => !this.isUuidAvailableAtLevel(uuid, level));
         if ( invalid.length ) {

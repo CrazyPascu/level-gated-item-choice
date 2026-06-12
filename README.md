@@ -31,3 +31,16 @@ At level 1, the player sees items 1–10. At level 2, the player sees items 1–
 ## Notes
 
 The compendium browser button is hidden for this advancement type because the core dnd5e item browser does not know this module's per-item level gates. Use the configured pool instead.
+
+## Parent and Child Pools
+
+Each advancement can now be configured as one of three pool roles:
+
+- **Standalone**: uses only its own pool.
+- **Parent / Main Pool**: uses its own pool plus any child pools on the same actor that target its Pool ID.
+- **Child / Contribute to Parent**: contributes its pool to the matching parent pool and does not create its own choice prompt.
+
+To link pools, set the parent advancement to **Parent / Main Pool** and give it a **Pool ID**, such as `eldritch-invocations`.
+Then set the child advancement to **Child / Contribute to Parent** and set its **Parent Pool ID** to the same value.
+
+When a character has both features, the parent advancement is the only selector and its available pool includes the child pool entries. Duplicate entries are merged using the earliest minimum level.
