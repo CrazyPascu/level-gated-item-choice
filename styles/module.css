@@ -200,3 +200,92 @@
 .level-gated-item-choice .lgic-pool-link-settings select {
   width: 100%;
 }
+
+.level-gated-item-choice.lgic-choice-flow .lgic-flow-options {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem;
+  border-radius: 5px;
+  background: #ff00001a;
+}
+
+.level-gated-item-choice.lgic-choice-flow .lgic-flow-current-heading,
+.level-gated-item-choice.lgic-choice-flow .lgic-flow-history-section h4 {
+  margin: 0.35rem 0 0.25rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 5px 5px 0 0;
+  background: #ff00001a;
+  text-align: center;
+}
+
+.level-gated-item-choice.lgic-choice-flow .lgic-choice-level-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.level-gated-item-choice.lgic-choice-flow .lgic-flow-item {
+  grid-template-columns: 1.5rem minmax(0, 1fr) 1.35rem;
+}
+
+.level-gated-item-choice.lgic-choice-flow .lgic-flow-choice-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.level-gated-item-choice.lgic-choice-flow .lgic-flow-history-section .lgic-flow-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.65rem;
+  padding: 0.1rem 0.15rem;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.level-gated-item-choice.lgic-choice-flow .lgic-flow-items-list {
+  margin: 0;
+  padding: 0.35rem;
+}
+
+.level-gated-item-choice.lgic-choice-flow .lgic-browse-button {
+  margin-top: 0.5rem;
+}
+
+.level-gated-item-choice .lgic-hidden {
+  display: none !important;
+}
+
+.level-gated-item-choice .lgic-role-field {
+  transition: opacity 120ms ease;
+}
+
+.level-gated-item-choice .lgic-level-title {
+  flex: 1 1 auto;
+}
+
+.level-gated-item-choice .lgic-section-title-input {
+  width: 100%;
+  height: 20px;
+  min-height: 20px;
+  padding: 0 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.18);
+  color: inherit;
+  font-size: var(--font-size-12, 12px);
+  font-weight: 700;
+  text-align: center;
+}
+
+.level-gated-item-choice .lgic-section-title-input::placeholder {
+  color: currentColor;
+  opacity: 0.72;
+}
+
+.level-gated-item-choice .lgic-section-title-input:focus {
+  border-color: rgba(255, 255, 255, 0.45);
+  outline: none;
+  background: rgba(0, 0, 0, 0.28);
+}

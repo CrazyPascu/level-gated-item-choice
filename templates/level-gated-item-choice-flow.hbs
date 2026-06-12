@@ -1,0 +1,86 @@
+{{#if (or abilities replaceable)}}
+  <fieldset class="lgic-flow-options">
+    <legend>{{ localize "DND5E.ADVANCEMENT.ItemChoice.Options" }}</legend>
+
+    {{#if abilities}}
+      {{ formGroup abilities.field name="ability" value=abilities.value disabled=abilities.disabled options=abilities.options rootId=partId }}
+    {{/if}}
+
+    {{#if replaceable}}
+      <label class="radio checkbox lgic-replacement-none">
+        <input type="radio" name="replace" value="" {{#if noReplacement}}checked{{/if}}>
+        <span>{{ localize "DND5E.ADVANCEMENT.ItemChoice.Replacement.None" }}</span>
+      </label>
+    {{/if}}
+  </fieldset>
+{{/if}}
+
+{{#each previousSections}}
+  <section class="lgic-flow-history-section">
+    <h4>{{ header }}</h4>
+
+    <ol class="items-list lgic-flow-items-list">
+      {{#each items}}
+        <li class="item lgic-flow-item" data-uuid="{{ uuid }}">
+          <div class="lgic-flow-item-link">
+            {{{ dnd5e-linkForUuid uuid label=name renderBroken=true }}}
+          </div>
+
+          {{#if (and @root.replaceable (not previouslyReplaced))}}
+            <label class="radio checkbox lgic-replacement-choice">
+              <input type="radio" name="replace" value="{{ id }}" {{#if checked}}checked{{/if}} {{#if replaced}}disabled{{/if}}>
+              <span>{{ localize "DND5E.ADVANCEMENT.ItemChoice.Replacement.Action" }}</span>
+            </label>
+          {{/if}}
+        </li>
+      {{/each}}
+    </ol>
+  </section>
+{{/each}}
+
+{{#if currentChoiceHeader}}
+  <h4 class="lgic-flow-current-heading">{{ currentChoiceHeader }}</h4>
+{{/if}}
+
+<div class="lgic-choice-level-grid">
+  {{#each choiceLevelSections}}
+    <details class="lgic-level-section lgic-choice-level-section" open>
+      <summary class="lgic-level-header">
+        <span class="lgic-level-title">{{ header }}</span>
+        <span class="lgic-level-header-right">
+          <span class="lgic-level-count">{{ items.length }}</span>
+          <i class="fa-solid fa-chevron-down lgic-toggle-icon" inert></i>
+        </span>
+      </summary>
+
+      <div class="lgic-level-body">
+        <ol class="items-list lgic-items-list lgic-flow-items-list">
+          {{#each items}}
+            <li class="item lgic-item lgic-flow-item" data-uuid="{{ uuid }}">
+              <div class="lgic-flow-choice-control">
+                <dnd5e-checkbox name="{{ uuid }}" {{#if checked}}checked{{/if}} {{#if disabled}}disabled{{/if}}></dnd5e-checkbox>
+              </div>
+
+              <div class="lgic-item-link lgic-flow-item-link">
+                {{{ dnd5e-linkForUuid uuid label=name renderBroken=true }}}
+              </div>
+
+              {{#if dropped}}
+                <button type="button" class="unbutton control-button lgic-delete" data-action="deleteItem" data-tooltip="DND5E.Delete">
+                  <i class="fa-solid fa-trash" inert></i>
+                </button>
+              {{/if}}
+            </li>
+          {{/each}}
+        </ol>
+      </div>
+    </details>
+  {{/each}}
+</div>
+
+{{#if showBrowseButton}}
+  <button type="button" class="lgic-browse-button" data-action="browse">
+    <i class="fa-solid fa-magnifying-glass" inert></i>
+    {{ localize selectLabel }}
+  </button>
+{{/if}}

@@ -32,6 +32,155 @@ function lgicCleanPoolId(value) {
   return String(value ?? "").trim();
 }
 
+function lgicCleanSectionTitle(value) {
+  return String(value ?? "").trim();
+}
+
+function lgicGetSectionTitles(configuration) {
+  const titles = configuration?.sectionTitles ?? {};
+  return titles?.toObject?.() ?? titles;
+}
+
+function lgicGetSectionTitle(configuration, level, { flow=false, fallback=true }={}) {
+  const title = lgicCleanSectionTitle(lgicGetSectionTitles(configuration)?.[level]);
+  if ( title ) return title;
+  if ( !fallback ) return "";
+  return flow ? t("LGIC.Flow.AvailableFromLevel", { level }) : t("LGIC.Config.LevelLabel", { level });
+}
+
+function lgicGetSelectedSourceUuids(advancement) {
+  const value = advancement?.value ?? advancement?.data?.value ?? advancement?.toObject?.()?.value ?? {};
+  const added = value.added ?? {};
+  const uuids = new Set();
+
+  const collect = source => {
+    if ( !source ) return;
+    if ( typeof source === "string" ) {
+      uuids.add(source);
+      return;
+    }
+    if ( Array.isArray(source) ) {
+      for ( const entry of source ) collect(entry);
+      return;
+    }
+    if ( typeof source === "object" ) {
+      for ( const entry of Object.values(source) ) collect(entry);
+    }
+  };
+
+  collect(added);
+  return Array.from(uuids);
+}
+
+function lgicGetSelectedSourceUuidsFromActor(actor) {
+  const uuids = new Set();
+
+  for ( const item of actor?.items ?? [] ) {
+    for ( const advancement of lgicGetItemAdvancements(item) ) {
+      for ( const uuid of lgicGetSelectedSourceUuids(advancement) ) {
+        uuids.add(uuid);
+      }
+    }
+  }
+
+  return Array.from(uuids);
+}
+
+function lgicGetSelectedSourceUuidsFromManager(manager) {
+  const uuids = new Set();
+
+  for ( const step of manager?.steps ?? [] ) {
+    const advancement = step?.flow?.advancement;
+    for ( const uuid of lgicGetSelectedSourceUuids(advancement) ) uuids.add(uuid);
+  }
+
+  return Array.from(uuids);
+}
+
+
+function lgicLooksLikeUuid(value) {
+  if ( typeof value !== "string" ) return false;
+  return /^(Actor|Item|Compendium|Scene|JournalEntry|Macro|RollTable)\./.test(value);
+}
+
+function lgicCollectUuidsDeep(value, { maxDepth=6, seen=new WeakSet() }={}) {
+  const uuids = new Set();
+
+  const collect = (entry, depth) => {
+    if ( depth > maxDepth || entry == null ) return;
+
+    if ( typeof entry === "string" ) {
+      if ( lgicLooksLikeUuid(entry) ) uuids.add(entry);
+      return;
+    }
+
+    if ( typeof entry !== "object" ) return;
+    if ( seen.has(entry) ) return;
+    seen.add(entry);
+
+    if ( lgicLooksLikeUuid(entry.uuid) ) uuids.add(entry.uuid);
+
+    if ( entry instanceof Map ) {
+      for ( const [key, val] of entry.entries() ) {
+        collect(key, depth + 1);
+        collect(val, depth + 1);
+      }
+      return;
+    }
+
+    if ( entry instanceof Set ) {
+      for ( const val of entry.values() ) collect(val, depth + 1);
+      return;
+    }
+
+    if ( Array.isArray(entry) ) {
+      for ( const val of entry ) collect(val, depth + 1);
+      return;
+    }
+
+    for ( const [key, val] of Object.entries(entry) ) {
+      if ( key.startsWith("_") && key !== "_id" ) continue;
+      collect(val, depth + 1);
+    }
+  };
+
+  collect(value, 0);
+  return Array.from(uuids);
+}
+
+function lgicDebugChildSearch(message, data = {}) {
+  console.log(`${MODULE_ID} | child pool scan | ${message}`, data);
+}
+
+function lgicGetCandidateActors(advancement, manager) {
+  const actors = [];
+  if ( advancement?.actor ) actors.push(advancement.actor);
+  if ( manager?.clone && !actors.includes(manager.clone) ) actors.push(manager.clone);
+  return actors;
+}
+
+function lgicGetChildAdvancementsFromActor(actor, parentPoolId, currentAdvancement) {
+  if ( !actor || !parentPoolId ) return [];
+
+  const children = [];
+  const currentId = lgicGetAdvancementId(currentAdvancement);
+
+  for ( const item of actor.items ?? [] ) {
+    for ( const advancement of lgicGetItemAdvancements(item) ) {
+      if ( lgicGetAdvancementType(advancement) !== ADVANCEMENT_TYPE ) continue;
+      if ( lgicGetAdvancementId(advancement) === currentId ) continue;
+
+      const configuration = lgicGetAdvancementConfiguration(advancement);
+      if ( lgicNormalizePoolRole(configuration.poolRole) !== "child" ) continue;
+      if ( lgicCleanPoolId(configuration.parentPoolId) !== parentPoolId ) continue;
+
+      children.push(advancement);
+    }
+  }
+
+  return children;
+}
+
 function lgicGetAdvancementId(advancement) {
   return advancement?.id ?? advancement?._id ?? advancement?.data?._id ?? advancement?.toObject?.()?._id ?? null;
 }
@@ -50,13 +199,158 @@ function lgicGetAdvancementPool(advancement) {
 }
 
 function lgicGetItemAdvancements(item) {
-  const advancements = item?.system?.advancement;
-  if ( !advancements ) return [];
+  if ( !item ) return [];
 
+  const parsed = item.advancement;
+  if ( parsed?.contents ) return Array.from(parsed.contents);
+  if ( parsed?.byId ) {
+    if ( typeof parsed.byId.values === "function" ) return Array.from(parsed.byId.values());
+    return Object.values(parsed.byId);
+  }
+  if ( typeof parsed?.values === "function" ) return Array.from(parsed.values());
+  if ( Array.isArray(parsed) ) return parsed;
+
+  const advancements = item.system?.advancement;
+  if ( !advancements ) return [];
   if ( Array.isArray(advancements) ) return advancements;
   if ( typeof advancements.values === "function" ) return Array.from(advancements.values());
 
   return Object.values(advancements);
+}
+
+function lgicCollectGrantEntryUuids(entries) {
+  const uuids = new Set();
+  const collect = entry => {
+    if ( !entry ) return;
+    if ( typeof entry === "string" ) {
+      if ( lgicLooksLikeUuid(entry) ) uuids.add(entry);
+      return;
+    }
+    if ( Array.isArray(entry) ) {
+      for ( const value of entry ) collect(value);
+      return;
+    }
+    if ( typeof entry !== "object" ) return;
+    if ( lgicLooksLikeUuid(entry.uuid) ) uuids.add(entry.uuid);
+  };
+
+  collect(entries);
+  return Array.from(uuids);
+}
+
+function lgicGetFollowUpItemUuidsFromAdvancement(advancement) {
+  const configuration = lgicGetAdvancementConfiguration(advancement);
+  const type = lgicGetAdvancementType(advancement);
+  const uuids = new Set();
+
+  // Actual selections already stored by an advancement.
+  for ( const uuid of lgicGetSelectedSourceUuids(advancement) ) uuids.add(uuid);
+
+  // dnd5e Item Grant advancements store granted item UUIDs in configuration.items.
+  // This is the important path for nested chains like B grants C grants D.
+  for ( const uuid of lgicCollectGrantEntryUuids(configuration.items) ) uuids.add(uuid);
+
+  // For non-LGIC Item Choice advancements, optionally follow the possible pool entries too.
+  // Do not follow this module's own configuration.pool here, because that pool means
+  // "choices contributed to the parent", not necessarily "items granted by this source item".
+  if ( type !== ADVANCEMENT_TYPE ) {
+    for ( const uuid of lgicCollectGrantEntryUuids(configuration.pool) ) uuids.add(uuid);
+  }
+
+  return Array.from(uuids);
+}
+
+async function lgicCollectMatchingChildPoolsFromItem(item, parentPoolId, {
+  currentAdvancement=null,
+  depth=0,
+  maxDepth=10,
+  seenItems=new Set(),
+  seenPoolKeys=new Set(),
+  origin=null
+}={}) {
+  const pools = [];
+  if ( !item || !parentPoolId || depth > maxDepth ) return pools;
+
+  const itemKey = item.uuid ?? item.id ?? item.name;
+  if ( !itemKey || seenItems.has(itemKey) ) return pools;
+  seenItems.add(itemKey);
+
+  const currentId = lgicGetAdvancementId(currentAdvancement);
+  const advancements = lgicGetItemAdvancements(item);
+
+  lgicDebugChildSearch("recursive item scan", {
+    origin,
+    depth,
+    item: item.name,
+    itemUuid: item.uuid,
+    advancementCount: advancements.length
+  });
+
+  const nextUuids = new Set();
+
+  for ( const advancement of advancements ) {
+    const configuration = lgicGetAdvancementConfiguration(advancement);
+    const type = lgicGetAdvancementType(advancement);
+    const role = lgicNormalizePoolRole(configuration.poolRole);
+    const childParentPoolId = lgicCleanPoolId(configuration.parentPoolId);
+    const advancementId = lgicGetAdvancementId(advancement);
+    const pool = lgicGetAdvancementPool(advancement);
+    const followUpUuids = lgicGetFollowUpItemUuidsFromAdvancement(advancement);
+
+    lgicDebugChildSearch("recursive advancement inspected", {
+      origin,
+      depth,
+      item: item.name,
+      itemUuid: item.uuid,
+      advancementId,
+      type,
+      role,
+      parentPoolId: childParentPoolId,
+      poolSize: pool.length,
+      followUpUuids,
+      matches: (type === ADVANCEMENT_TYPE) && (role === "child") && (childParentPoolId === parentPoolId)
+    });
+
+    if ( (type === ADVANCEMENT_TYPE) && (role === "child") && (childParentPoolId === parentPoolId) ) {
+      if ( advancementId !== currentId ) {
+        const key = `${item.uuid ?? item.id ?? "item"}.${advancementId ?? foundry.utils.randomID()}`;
+        if ( !seenPoolKeys.has(key) ) {
+          seenPoolKeys.add(key);
+          pools.push(pool);
+          lgicDebugChildSearch("recursive child pool added", {
+            origin,
+            depth,
+            item: item.name,
+            itemUuid: item.uuid,
+            advancementId,
+            poolSize: pool.length
+          });
+        }
+      }
+    }
+
+    for ( const uuid of followUpUuids ) nextUuids.add(uuid);
+  }
+
+  for ( const uuid of nextUuids ) {
+    const nextItem = await fromUuid(uuid);
+    if ( !nextItem ) {
+      lgicDebugChildSearch("recursive follow-up unresolved", { origin, depth, uuid });
+      continue;
+    }
+
+    const nestedPools = await lgicCollectMatchingChildPoolsFromItem(nextItem, parentPoolId, {
+      currentAdvancement,
+      depth: depth + 1,
+      maxDepth,
+      seenItems,
+      seenPoolKeys,
+      origin: origin ?? item.uuid ?? item.name
+    });
+    pools.push(...nestedPools);
+  }
+
+  return pools;
 }
 
 function lgicNormalizePoolEntry(entry, maxLevel = MAX_SECTION_LEVEL) {
@@ -193,6 +487,23 @@ function buildClasses() {
         label: "LGIC.Config.ParentPoolId"
       });
 
+      schema.sectionTitles = new SchemaField(Object.fromEntries(
+        Array.from({ length: MAX_SECTION_LEVEL }, (_, index) => {
+          const level = index + 1;
+          return [level, new StringField({
+            required: false,
+            nullable: false,
+            blank: true,
+            initial: "",
+            label: "LGIC.Config.SectionTitle"
+          })];
+        })
+      ), {
+        required: false,
+        nullable: false,
+        label: "LGIC.Config.SectionTitles"
+      });
+
       return schema;
     }
 
@@ -220,6 +531,14 @@ function buildClasses() {
       source.poolRole = lgicNormalizePoolRole(source.poolRole);
       source.poolId = lgicCleanPoolId(source.poolId);
       source.parentPoolId = lgicCleanPoolId(source.parentPoolId);
+
+      const sectionTitles = source.sectionTitles ?? {};
+      source.sectionTitles = Object.fromEntries(
+        Array.from({ length: MAX_SECTION_LEVEL }, (_, index) => {
+          const level = index + 1;
+          return [level, lgicCleanSectionTitle(sectionTitles[level])];
+        })
+      );
 
       return source;
     }
@@ -281,9 +600,14 @@ function buildClasses() {
       const sections = new Map();
 
       for ( let level = 1; level <= maxLevel; level++ ) {
+        const defaultLabel = t("LGIC.Config.LevelLabel", { level });
+        const titleValue = lgicGetSectionTitle(this.advancement.configuration, level, { fallback: false });
+
         sections.set(level, {
           level,
-          label: t("LGIC.Config.LevelLabel", { level }),
+          label: titleValue || defaultLabel,
+          defaultLabel,
+          titleValue,
           dropLabel: t("LGIC.Config.DropHere", { level }),
           open: !collapsedLevels.has(String(level)),
           items: []
@@ -314,6 +638,8 @@ function buildClasses() {
 
       const poolRole = lgicNormalizePoolRole(this.advancement.configuration.poolRole);
       context.poolRole = poolRole;
+      context.isPoolParent = poolRole === "parent";
+      context.isPoolChild = poolRole === "child";
       context.poolId = this.advancement.configuration.poolId ?? "";
       context.parentPoolId = this.advancement.configuration.parentPoolId ?? "";
       context.poolRoleOptions = [
@@ -344,6 +670,17 @@ function buildClasses() {
       configuration.poolId = lgicCleanPoolId(configuration.poolId);
       configuration.parentPoolId = lgicCleanPoolId(configuration.parentPoolId);
 
+      if ( configuration.poolRole !== "parent" ) configuration.poolId = "";
+      if ( configuration.poolRole !== "child" ) configuration.parentPoolId = "";
+
+      const sectionTitles = configuration.sectionTitles ?? {};
+      configuration.sectionTitles = Object.fromEntries(
+        Array.from({ length: MAX_SECTION_LEVEL }, (_, index) => {
+          const level = index + 1;
+          return [level, lgicCleanSectionTitle(sectionTitles[level])];
+        })
+      );
+
       return super.prepareConfigurationUpdate(configuration);
     }
 
@@ -366,6 +703,23 @@ function buildClasses() {
         });
         zone.addEventListener("drop", () => zone.classList.remove("lgic-drop-active"));
       }
+
+      for ( const input of this.element.querySelectorAll("[data-lgic-section-title]") ) {
+        input.addEventListener("click", event => event.stopPropagation());
+        input.addEventListener("pointerdown", event => event.stopPropagation());
+        input.addEventListener("keydown", event => event.stopPropagation());
+      }
+
+      const roleSelect = this.element.querySelector("[data-lgic-pool-role]");
+      const updateRoleFields = () => {
+        const role = lgicNormalizePoolRole(roleSelect?.value);
+        for ( const field of this.element.querySelectorAll("[data-lgic-role-field]") ) {
+          const visible = field.dataset.lgicRoleField === role;
+          field.classList.toggle("lgic-hidden", !visible);
+        }
+      };
+      roleSelect?.addEventListener("change", updateRoleFields);
+      updateRoleFields();
     }
 
     async _onDragStart(event) {
@@ -423,12 +777,23 @@ function buildClasses() {
   }
 
   class LGICLevelGatedItemChoiceFlow extends ItemChoiceFlow {
+    static get DEFAULT_OPTIONS() {
+      const base = super.DEFAULT_OPTIONS ?? {};
+      const classes = [...new Set([...(base.classes ?? []), "level-gated-item-choice", "lgic-choice-flow"])] ;
+      return foundry.utils.mergeObject(base, { classes }, { inplace: false });
+    }
+
+
     async _prepareContentContext(context, options) {
+      this.manager?.clone?.reset?.();
+      this.advancement.actor?.reset?.();
+      await this.advancement.preparePendingChildPools?.({ manager: this.manager });
+
       if ( this.advancement.isPoolChild ) {
         this.pool = [];
       } else {
         this.pool = (
-          await Promise.all(this.advancement.getPoolForLevel(this.level).map(entry => fromUuid(entry.uuid)))
+          await Promise.all(this.advancement.getPoolForLevel(this.level, { manager: this.manager }).map(entry => fromUuid(entry.uuid)))
         ).filter(Boolean);
       }
 
@@ -436,7 +801,89 @@ function buildClasses() {
 
       // The core browser cannot enforce this module's per-pool-entry level gates.
       context.showBrowseButton = false;
+      this._prepareLevelChoiceSections(context);
       return context;
+    }
+
+    _prepareLevelChoiceSections(context) {
+      const sections = Array.from(context.sections ?? []);
+      const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
+      const entryLevels = new Map();
+      const mergedPool = this.advancement.getMergedPool?.({ manager: this.manager }) ?? this.advancement.getPoolForLevel(this.level, { manager: this.manager });
+
+      for ( const entry of mergedPool ) {
+        const minLevel = clampLevel(entry.minLevel ?? 1, maxLevel);
+        entryLevels.set(entry.uuid, minLevel);
+      }
+
+      for ( const item of this.pool ?? [] ) {
+        const sourceUuid = item.flags?.dnd5e?.sourceId ?? item.uuid;
+        const entry = mergedPool.find(e => (e.uuid === sourceUuid) || (e.uuid === item.uuid));
+        if ( !entry ) continue;
+
+        const minLevel = clampLevel(entry.minLevel ?? 1, maxLevel);
+        entryLevels.set(sourceUuid, minLevel);
+        entryLevels.set(item.uuid, minLevel);
+      }
+
+      const levelForItem = item => {
+        const uuid = item?.uuid;
+        if ( entryLevels.has(uuid) ) return entryLevels.get(uuid);
+
+        const actorItem = item?.id ? this.advancement.actor?.items?.get(item.id) : null;
+        const sourceUuid = actorItem?.flags?.dnd5e?.sourceId ?? actorItem?._stats?.compendiumSource ?? actorItem?.uuid;
+        if ( entryLevels.has(sourceUuid) ) return entryLevels.get(sourceUuid);
+
+        return clampLevel(this.level ?? 1, maxLevel);
+      };
+
+      const rebuiltSections = [];
+
+      for ( const section of sections ) {
+        const grouped = new Map();
+
+        for ( const item of section.items ?? [] ) {
+          const minLevel = levelForItem(item);
+          if ( !grouped.has(minLevel) ) {
+            grouped.set(minLevel, {
+              ...section,
+              level: minLevel,
+              header: this.advancement.getRegionTitle(minLevel, { flow: true }),
+              items: []
+            });
+          }
+
+          grouped.get(minLevel).items.push(item);
+        }
+
+        const levelSections = Array.from(grouped.values()).sort((a, b) => a.level - b.level);
+        for ( const levelSection of levelSections ) {
+          lgicSortItemsByName(levelSection.items);
+          rebuiltSections.push(levelSection);
+        }
+      }
+
+      context.sections = rebuiltSections;
+    }
+
+    async _handleForm(event, form, formData) {
+      const target = event.target;
+      const isChoiceCheckbox = target?.tagName === "DND5E-CHECKBOX";
+
+      await super._handleForm(event, form, formData);
+
+      if ( isChoiceCheckbox ) {
+        // A selected item may grant a child pool. Clear the cached pool and re-render so the
+        // parent pool can immediately include child entries added to the advancement actor clone.
+        this.pool = null;
+        this.manager?.clone?.reset?.();
+        this.advancement.actor?.reset?.();
+        await this.advancement.preparePendingChildPools?.({
+          manager: this.manager,
+          extraUuids: target.checked ? [target.name] : []
+        });
+        this.render();
+      }
     }
 
     async _onDrop(event) {
@@ -460,7 +907,7 @@ function buildClasses() {
       }
 
       const sourceUuid = item.flags.dnd5e?.sourceId ?? item.uuid;
-      const poolEntry = this.advancement.getPoolForLevel(this.level).find(entry => {
+      const poolEntry = this.advancement.getPoolForLevel(this.level, { manager: this.manager }).find(entry => {
         return (entry.uuid === item.uuid) || (entry.uuid === sourceUuid);
       });
 
@@ -481,6 +928,13 @@ function buildClasses() {
       }
 
       await this.advancement.apply(this.level, { selected: [poolEntry.uuid] });
+      this.pool = null;
+      this.manager?.clone?.reset?.();
+      this.advancement.actor?.reset?.();
+      await this.advancement.preparePendingChildPools?.({
+        manager: this.manager,
+        extraUuids: [poolEntry.uuid]
+      });
       this.render();
     }
   }
@@ -534,51 +988,169 @@ function buildClasses() {
       return super.levels;
     }
 
+    getRegionTitle(level, { flow=false }={}) {
+      return lgicGetSectionTitle(this.configuration, level, { flow, fallback: true });
+    }
+
+    async preparePendingChildPools({ manager=null, extraUuids=[] }={}) {
+      this._lgicPendingChildPools = [];
+      if ( !this.isPoolParent || !this.poolId ) {
+        lgicDebugChildSearch("skipped", {
+          reason: !this.isPoolParent ? "not-parent" : "missing-pool-id",
+          item: this.item?.name,
+          advancementId: lgicGetAdvancementId(this)
+        });
+        return [];
+      }
+
+      manager?.clone?.reset?.();
+      this.actor?.reset?.();
+
+      const pools = [];
+      const seenPoolKeys = new Set();
+      const currentSelectionUuids = lgicGetSelectedSourceUuids(this);
+      const managerSelectionUuids = lgicGetSelectedSourceUuidsFromManager(manager);
+      const deepManagerUuids = lgicCollectUuidsDeep(manager, { maxDepth: 6 });
+      const pendingUuids = new Set([
+        ...currentSelectionUuids,
+        ...managerSelectionUuids,
+        ...deepManagerUuids,
+        ...extraUuids
+      ]);
+
+      lgicDebugChildSearch("start", {
+        parentItem: this.item?.name,
+        parentPoolId: this.poolId,
+        advancementId: lgicGetAdvancementId(this),
+        managerSteps: manager?.steps?.length ?? null,
+        currentSelectionUuids,
+        managerSelectionUuids,
+        deepManagerUuids,
+        extraUuids,
+        pendingUuids: Array.from(pendingUuids)
+      });
+
+      const actors = lgicGetCandidateActors(this, manager);
+      lgicDebugChildSearch("candidate actors", actors.map(actor => ({
+        name: actor?.name,
+        id: actor?.id,
+        uuid: actor?.uuid,
+        itemCount: actor?.items?.size ?? actor?.items?.length ?? 0
+      })));
+
+      for ( const actor of actors ) {
+        for ( const uuid of lgicGetSelectedSourceUuidsFromActor(actor) ) pendingUuids.add(uuid);
+
+        const actorChildren = lgicGetChildAdvancementsFromActor(actor, this.poolId, this);
+        lgicDebugChildSearch("actor children found", {
+          actor: actor?.name,
+          count: actorChildren.length,
+          children: actorChildren.map(child => ({
+            item: child.item?.name,
+            itemUuid: child.item?.uuid,
+            advancementId: lgicGetAdvancementId(child),
+            role: lgicNormalizePoolRole(lgicGetAdvancementConfiguration(child).poolRole),
+            parentPoolId: lgicCleanPoolId(lgicGetAdvancementConfiguration(child).parentPoolId),
+            poolSize: lgicGetAdvancementPool(child).length
+          }))
+        });
+
+        for ( const child of actorChildren ) {
+          const pool = lgicGetAdvancementPool(child);
+          const key = `${child.item?.uuid ?? child.item?.id ?? "item"}.${lgicGetAdvancementId(child) ?? foundry.utils.randomID()}`;
+          if ( seenPoolKeys.has(key) ) continue;
+          seenPoolKeys.add(key);
+          pools.push(pool);
+        }
+
+        for ( const item of actor.items ?? [] ) {
+          const nestedPools = await lgicCollectMatchingChildPoolsFromItem(item, this.poolId, {
+            currentAdvancement: this,
+            seenPoolKeys,
+            origin: `actor:${actor?.name ?? actor?.uuid ?? "unknown"}`
+          });
+          pools.push(...nestedPools);
+        }
+      }
+
+      for ( const uuid of pendingUuids ) {
+        const item = await fromUuid(uuid);
+        if ( !item ) {
+          lgicDebugChildSearch("pending uuid unresolved", { uuid });
+          continue;
+        }
+
+        lgicDebugChildSearch("pending uuid resolved", {
+          uuid,
+          item: item.name,
+          itemUuid: item.uuid,
+          advancementCount: lgicGetItemAdvancements(item).length
+        });
+
+        const nestedPools = await lgicCollectMatchingChildPoolsFromItem(item, this.poolId, {
+          currentAdvancement: this,
+          seenPoolKeys,
+          origin: uuid
+        });
+        pools.push(...nestedPools);
+      }
+
+      this._lgicPendingChildPools = pools;
+      lgicDebugChildSearch("complete", {
+        poolCount: pools.length,
+        totalEntries: pools.reduce((total, pool) => total + (pool?.length ?? 0), 0),
+        seenPoolKeys: Array.from(seenPoolKeys)
+      });
+      return pools;
+    }
+
+
     configuredForLevel(level) {
       if ( this.isPoolChild ) return true;
       return super.configuredForLevel(level);
     }
 
-    getLinkedChildAdvancements() {
-      if ( !this.isPoolParent || !this.poolId || !this.actor ) return [];
+    getLinkedChildAdvancements({ manager=null }={}) {
+      if ( !this.isPoolParent || !this.poolId ) return [];
 
       const children = [];
-      const currentId = lgicGetAdvancementId(this);
+      const seen = new Set();
 
-      for ( const item of this.actor.items ?? [] ) {
-        for ( const advancement of lgicGetItemAdvancements(item) ) {
-          if ( lgicGetAdvancementType(advancement) !== ADVANCEMENT_TYPE ) continue;
-          if ( lgicGetAdvancementId(advancement) === currentId ) continue;
-
-          const configuration = lgicGetAdvancementConfiguration(advancement);
-          if ( lgicNormalizePoolRole(configuration.poolRole) !== "child" ) continue;
-          if ( lgicCleanPoolId(configuration.parentPoolId) !== this.poolId ) continue;
-
-          children.push(advancement);
+      for ( const actor of lgicGetCandidateActors(this, manager) ) {
+        for ( const child of lgicGetChildAdvancementsFromActor(actor, this.poolId, this) ) {
+          const key = `${child.item?.uuid ?? child.item?.id ?? "item"}.${lgicGetAdvancementId(child) ?? foundry.utils.randomID()}`;
+          if ( seen.has(key) ) continue;
+          seen.add(key);
+          children.push(child);
         }
       }
 
       return children;
     }
 
-    getMergedPool() {
+
+    getMergedPool({ manager=null }={}) {
       const maxLevel = Math.min(Number(CONFIG.DND5E?.maxLevel ?? MAX_SECTION_LEVEL), MAX_SECTION_LEVEL) || MAX_SECTION_LEVEL;
       const pools = [this.configuration.pool ?? []];
 
       if ( this.isPoolParent ) {
-        for ( const child of this.getLinkedChildAdvancements() ) {
+        for ( const child of this.getLinkedChildAdvancements({ manager }) ) {
           pools.push(lgicGetAdvancementPool(child));
+        }
+
+        for ( const pendingPool of this._lgicPendingChildPools ?? [] ) {
+          pools.push(pendingPool);
         }
       }
 
       return lgicMergePools(pools, maxLevel);
     }
 
-    getPoolForLevel(level) {
+    getPoolForLevel(level, { manager=null }={}) {
       if ( this.isPoolChild ) return [];
 
       const numericLevel = Number(level);
-      return this.getMergedPool().filter(entry => {
+      return this.getMergedPool({ manager }).filter(entry => {
         const min = Number(entry.minLevel ?? 0);
         return numericLevel >= min;
       });
@@ -591,6 +1163,8 @@ function buildClasses() {
     async apply(level, data = {}, options = {}) {
       if ( this.isPoolChild ) return;
 
+      if ( data.selected?.length ) await this.preparePendingChildPools();
+
       if ( data.selected?.length ) {
         const invalid = data.selected.filter(uuid => !this.isUuidAvailableAtLevel(uuid, level));
         if ( invalid.length ) {
@@ -598,7 +1172,17 @@ function buildClasses() {
         }
       }
 
-      return super.apply(level, data, options);
+      const result = await super.apply(level, data, options);
+
+      // A selected item that grants a child pool may not exist as an actor item yet; it can first live only
+      // in an advancement value.added map. Reset the clone, then scan selected source UUIDs so the parent
+      // pool can see child pools during the same advancement workflow.
+      if ( data.selected?.length ) {
+        this.actor?.reset?.();
+        await this.preparePendingChildPools();
+      }
+
+      return result;
     }
   }
 

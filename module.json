@@ -1,8 +1,8 @@
 {
   "id": "Level-Gated-Item-Choice",
   "title": "Level-Gated Item Choice Advancement",
-  "description": "Adds a D&D 5e advancement type where each advancement level controls both how many items can be selected and which items are available.",
-  "version": "0.5.0",
+  "description": "Adds a D&D 5e advancement type with level-gated item pools, custom region titles, parent/child pool merging, recursive nested child-pool discovery, debug logging, and duplicate selection section merging without merging all selected items together.",
+  "version": "0.12.3",
   "authors": [
     {
       "name": "CrazyPascu",

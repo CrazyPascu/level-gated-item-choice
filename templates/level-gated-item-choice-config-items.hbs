@@ -6,7 +6,7 @@
     <div class="form-group">
       <label>{{localize "LGIC.Config.PoolRole"}}</label>
       <div class="form-fields">
-        <select name="configuration.poolRole">
+        <select name="configuration.poolRole" data-lgic-pool-role>
           {{#each poolRoleOptions}}
             <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
           {{/each}}
@@ -15,7 +15,7 @@
       <p class="hint">{{localize "LGIC.Config.PoolRoleHint"}}</p>
     </div>
 
-    <div class="form-group">
+    <div class="form-group lgic-role-field {{#unless isPoolParent}}lgic-hidden{{/unless}}" data-lgic-role-field="parent">
       <label>{{localize "LGIC.Config.PoolId"}}</label>
       <div class="form-fields">
         <input type="text" name="configuration.poolId" value="{{poolId}}" placeholder="eldritch-invocations">
@@ -23,7 +23,7 @@
       <p class="hint">{{localize "LGIC.Config.PoolIdHint"}}</p>
     </div>
 
-    <div class="form-group">
+    <div class="form-group lgic-role-field {{#unless isPoolChild}}lgic-hidden{{/unless}}" data-lgic-role-field="child">
       <label>{{localize "LGIC.Config.ParentPoolId"}}</label>
       <div class="form-fields">
         <input type="text" name="configuration.parentPoolId" value="{{parentPoolId}}" placeholder="eldritch-invocations">
@@ -36,7 +36,16 @@
     {{#each levelSections}}
       <details class="lgic-level-section" data-lgic-level="{{level}}" {{#if open}}open{{/if}}>
         <summary class="lgic-level-header">
-          <span class="lgic-level-title">{{label}}</span>
+          <span class="lgic-level-title">
+            <input
+              type="text"
+              class="lgic-section-title-input"
+              name="configuration.sectionTitles.{{level}}"
+              value="{{titleValue}}"
+              placeholder="{{defaultLabel}}"
+              aria-label="{{localize 'LGIC.Config.SectionTitle'}}"
+              data-lgic-section-title>
+          </span>
           <span class="lgic-level-header-right">
             <span class="lgic-level-count">{{items.length}}</span>
             <i class="fa-solid fa-chevron-down lgic-toggle-icon" inert></i>

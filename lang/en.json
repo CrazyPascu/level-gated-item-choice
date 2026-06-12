@@ -20,5 +20,10 @@
   "LGIC.Config.PoolId": "Pool ID",
   "LGIC.Config.PoolIdHint": "For a parent pool, set the ID that child pools should target. Leave blank for standalone pools.",
   "LGIC.Config.ParentPoolId": "Parent Pool ID",
-  "LGIC.Config.ParentPoolIdHint": "For a child pool, enter the parent Pool ID to merge into. Child advancements do not prompt for choices."
+  "LGIC.Config.ParentPoolIdHint": "For a child pool, enter the parent Pool ID to merge into. Child advancements do not prompt for choices.",
+  "LGIC.Flow.AvailableFromLevel": "Available from Level {level}+",
+  "LGIC.Config.SectionTitles": "Region Titles",
+  "LGIC.Config.SectionTitle": "Region Title",
+  "LGIC.Config.SectionTitleHint": "Optional title for this region. If left blank, the default level label is used.",
+  "LGIC.Notification.PendingChildPools": "Merged {count} pending child pool(s) from selected but not-yet-added items."
 }
