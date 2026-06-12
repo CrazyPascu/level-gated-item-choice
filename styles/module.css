@@ -10,8 +10,8 @@
 }
 
 .level-gated-item-choice .lgic-level-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 0.45rem;
   align-items: start;
 }
@@ -23,6 +23,7 @@
   border-radius: 5px;
   background: rgba(20, 22, 30, 0.35);
   overflow: hidden;
+  width: 100%;
 }
 
 .level-gated-item-choice .lgic-level-section:hover,

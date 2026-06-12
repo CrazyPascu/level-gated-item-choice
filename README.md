@@ -23,21 +23,6 @@ You can also drag an item that is already in the pool from one level section to 
 
 At level 1, the player sees items 1–10. At level 2, the player sees items 1–20.
 
-## Installation
-
-1. Delete any old `Data/modules/level-gated-item-choice/` folder.
-2. Unzip this package into `Data/modules/` so the final path is:
-   `Data/modules/level-gated-item-choice/module.json`
-3. Restart Foundry.
-4. Enable **Level-Gated Item Choice Advancement** in Manage Modules.
-5. Reload the world.
-
-This build shows a Foundry notification on world load. If it registers successfully, you will see:
-
-> Level-Gated Item Choice is registered.
-
-If you see no notification at all, the module is not being loaded by Foundry.
-
 ## Compatibility
 
 - Foundry VTT: 14.x, verified 14.363
