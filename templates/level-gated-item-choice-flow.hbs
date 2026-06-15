@@ -1,3 +1,4 @@
+<div class="lgic-flow">
 {{#if (or abilities replaceable)}}
   <fieldset class="lgic-flow-options">
     <legend>{{ localize "DND5E.ADVANCEMENT.ItemChoice.Options" }}</legend>
@@ -16,26 +17,34 @@
 {{/if}}
 
 {{#each previousSections}}
-  <section class="lgic-flow-history-section">
-    <h4>{{ header }}</h4>
+  <details class="lgic-level-section lgic-flow-history-section" open>
+    <summary class="lgic-level-header">
+      <span class="lgic-level-title">{{ header }}</span>
+      <span class="lgic-level-header-right">
+        <span class="lgic-level-count">{{ items.length }}</span>
+        <i class="fa-solid fa-chevron-down lgic-toggle-icon" inert></i>
+      </span>
+    </summary>
 
-    <ol class="items-list lgic-flow-items-list">
-      {{#each items}}
-        <li class="item lgic-flow-item" data-uuid="{{ uuid }}">
-          <div class="lgic-flow-item-link">
-            {{{ dnd5e-linkForUuid uuid label=name renderBroken=true }}}
-          </div>
+    <div class="lgic-level-body">
+      <ol class="items-list lgic-items-list lgic-flow-items-list">
+        {{#each items}}
+          <li class="item lgic-item lgic-flow-item lgic-selected-item" data-uuid="{{ uuid }}">
+            <div class="lgic-item-link lgic-flow-item-link">
+              {{{ dnd5e-linkForUuid uuid label=name renderBroken=true }}}
+            </div>
 
-          {{#if (and @root.replaceable (not previouslyReplaced))}}
-            <label class="radio checkbox lgic-replacement-choice">
-              <input type="radio" name="replace" value="{{ id }}" {{#if checked}}checked{{/if}} {{#if replaced}}disabled{{/if}}>
-              <span>{{ localize "DND5E.ADVANCEMENT.ItemChoice.Replacement.Action" }}</span>
-            </label>
-          {{/if}}
-        </li>
-      {{/each}}
-    </ol>
-  </section>
+            {{#if (and @root.replaceable (not previouslyReplaced) (not lgicCurrentSelection))}}
+              <label class="radio checkbox lgic-replacement-choice">
+                <input type="radio" name="replace" value="{{ id }}" {{#if checked}}checked{{/if}} {{#if replaced}}disabled{{/if}}>
+                <span>{{ localize "DND5E.ADVANCEMENT.ItemChoice.Replacement.Action" }}</span>
+              </label>
+            {{/if}}
+          </li>
+        {{/each}}
+      </ol>
+    </div>
+  </details>
 {{/each}}
 
 {{#if currentChoiceHeader}}
@@ -84,3 +93,4 @@
     {{ localize selectLabel }}
   </button>
 {{/if}}
+</div>

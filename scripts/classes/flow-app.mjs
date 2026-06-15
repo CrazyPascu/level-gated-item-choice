@@ -1,3 +1,4 @@
+import { MODULE_ID } from "../constants.mjs";
 import { clampLevel, getMaxSectionLevel } from "../utils/levels.mjs";
 import { t } from "../utils/i18n.mjs";
 import { sortItemsByName } from "../utils/pool.mjs";
@@ -8,6 +9,14 @@ export function createFlowClass(ItemChoiceFlow) {
       const base = super.DEFAULT_OPTIONS ?? {};
       const classes = [...new Set([...(base.classes ?? []), "level-gated-item-choice", "lgic-choice-flow"])] ;
       return foundry.utils.mergeObject(base, { classes }, { inplace: false });
+    }
+
+    static get PARTS() {
+      return foundry.utils.mergeObject(super.PARTS ?? {}, {
+        content: {
+          template: `modules/${MODULE_ID}/templates/level-gated-item-choice-flow.hbs`
+        }
+      }, { inplace: false });
     }
 
     async _prepareContentContext(context, options) {
@@ -27,11 +36,11 @@ export function createFlowClass(ItemChoiceFlow) {
 
       // The core browser cannot enforce this module's per-pool-entry level gates.
       context.showBrowseButton = false;
-      this._prepareLevelChoiceSections(context);
+      this._prepareLevelSections(context);
       return context;
     }
 
-    _prepareLevelChoiceSections(context) {
+    _prepareLevelSections(context) {
       const sections = Array.from(context.sections ?? []);
       const maxLevel = getMaxSectionLevel();
       const entryLevels = new Map();
@@ -63,33 +72,72 @@ export function createFlowClass(ItemChoiceFlow) {
         return clampLevel(this.level ?? 1, maxLevel);
       };
 
-      const rebuiltSections = [];
+      const selectedSections = new Map();
+      const choiceSections = new Map();
 
-      for ( const section of sections ) {
-        const grouped = new Map();
+      const addToSection = (map, item, sourceSection) => {
+        const minLevel = levelForItem(item);
+        const header = this.advancement.getRegionTitle(minLevel, { flow: true });
+        const key = `${minLevel}.${header}`;
 
-        for ( const item of section.items ?? [] ) {
-          const minLevel = levelForItem(item);
-          if ( !grouped.has(minLevel) ) {
-            grouped.set(minLevel, {
-              ...section,
-              level: minLevel,
-              header: this.advancement.getRegionTitle(minLevel, { flow: true }),
-              items: []
-            });
-          }
-
-          grouped.get(minLevel).items.push(item);
+        if ( !map.has(key) ) {
+          map.set(key, {
+            ...sourceSection,
+            level: minLevel,
+            header,
+            items: []
+          });
         }
 
-        const levelSections = Array.from(grouped.values()).sort((a, b) => a.level - b.level);
-        for ( const levelSection of levelSections ) {
-          sortItemsByName(levelSection.items);
-          rebuiltSections.push(levelSection);
+        map.get(key).items.push(item);
+      };
+
+      const selectedItems = [];
+      const choiceItems = [];
+
+      for ( const section of sections ) {
+        for ( const item of section.items ?? [] ) {
+          if ( section.isCurrentLevel ) {
+            choiceItems.push({ item, section });
+            continue;
+          }
+
+          selectedItems.push({ item, section });
         }
       }
 
-      context.sections = rebuiltSections;
+      const selectedUuids = new Set();
+      for ( const { item, section } of selectedItems ) {
+        selectedUuids.add(item.uuid);
+        addToSection(selectedSections, {
+          ...item,
+          disabled: true,
+          lgicCurrentSelection: false
+        }, {
+          ...section,
+          isCurrentLevel: false
+        });
+      }
+
+      for ( const { item, section } of choiceItems ) {
+        if ( selectedUuids.has(item.uuid) ) continue;
+        addToSection(choiceSections, item, section);
+      }
+
+      const prepareSections = map => {
+        return Array.from(map.values()).sort((a, b) => a.level - b.level).map(section => {
+          sortItemsByName(section.items);
+          return section;
+        });
+      };
+
+      context.previousSections = prepareSections(selectedSections);
+      context.choiceLevelSections = prepareSections(choiceSections);
+      context.currentChoiceHeader = sections.find(section => section.isCurrentLevel)?.header;
+      context.sections = [
+        ...context.previousSections,
+        ...context.choiceLevelSections
+      ];
     }
 
     async _handleForm(event, form, formData) {

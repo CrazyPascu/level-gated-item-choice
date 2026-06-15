@@ -22,8 +22,7 @@ export function createConfigClass(ItemChoiceConfig) {
 
     static get PARTS() {
       return foundry.utils.mergeObject(super.PARTS ?? {}, {
-        items: {
-          container: { classes: ["column-container"], id: "column-center" },
+        content: {
           template: `modules/${MODULE_ID}/templates/level-gated-item-choice-config-items.hbs`
         }
       }, { inplace: false });
@@ -80,13 +79,16 @@ export function createConfigClass(ItemChoiceConfig) {
         });
       }
 
-      context.items = (context.items ?? []).map((item, index) => {
-        const rawMin = item.data?.minLevel;
+      // Populate items from the pool configuration
+      const poolItems = this.advancement.configuration.pool ?? [];
+      context.items = poolItems.map((poolEntry, index) => {
+        const rawMin = poolEntry.minLevel;
         const min = [undefined, null, ""].includes(rawMin) ? 1 : Number(rawMin);
         const minLevel = clampLevel(Number.isFinite(min) ? min : 1, maxLevel);
 
         return {
-          ...item,
+          data: { uuid: poolEntry.uuid },
+          uuid: poolEntry.uuid,
           poolIndex: index,
           minLevel
         };
@@ -114,6 +116,9 @@ export function createConfigClass(ItemChoiceConfig) {
         { value: "child", label: t("LGIC.Config.PoolRoleChild"), selected: poolRole === "child" }
       ];
 
+      // Items are now loaded
+      context.isLoading = false;
+
       return context;
     }
 
@@ -122,9 +127,6 @@ export function createConfigClass(ItemChoiceConfig) {
         const maxLevel = getMaxSectionLevel();
         configuration.pool = Object.values(configuration.pool).map(entry => {
           const rawMin = entry.minLevel;
-          const min = [undefined, null, ""].includes(rawMin) ? 1 : Number(rawMin);
-          const minLevel = clampLevel(Number.isFinite(min) ? min : 1, maxLevel);
-
           return {
             uuid: entry.uuid,
             minLevel

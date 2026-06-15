@@ -129,6 +129,11 @@
   cursor: grabbing;
 }
 
+.level-gated-item-choice .lgic-selected-item,
+.level-gated-item-choice .lgic-selected-item:active {
+  cursor: default;
+}
+
 .level-gated-item-choice .lgic-item-link {
   min-width: 0;
   overflow: hidden;
