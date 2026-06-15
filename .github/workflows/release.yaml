@@ -10,25 +10,31 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create zip of whole code
+      - name: Check required files
         run: |
-          zip -r module.zip . \
+          test -f module.json
+
+      - name: Create module zip
+        run: |
+          zip -r "module.zip" . \
             -x ".git/*" \
             -x ".github/*" \
-            -x "node_modules/*"
+            -x "node_modules/*" \
+            -x "*.md" \
+            -x ".gitignore"
 
       - name: Create GitHub Release and upload files
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            module.zip \
+            "module.zip" \
             module.json \
             --title "${{ github.ref_name }}" \
             --notes "Automatic release"
