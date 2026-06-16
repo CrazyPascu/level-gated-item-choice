@@ -52,25 +52,3 @@ Each level section has an optional title field in its header. Leave it blank to 
 ## Pending Child Pool Detection
 
 When a parent advancement selects an item that contains a matching child advancement, the module now scans the selected source item directly. This allows the parent pool to include child pool options even before the selected item has been fully committed to the actor by the dnd5e advancement workflow.
-
-
-## 0.11.1
-
-- Scans the advancement manager clone and all current manager steps for selected source UUIDs when merging child pools.
-- Uses region titles for both current and previously selected items in the selection flow.
-- Passes the just-selected UUID directly into pending child-pool detection so child pools can appear immediately after selection.
-
-
-## 0.11.2
-
-- Adds console debug logs around child pool scanning. Look for `level-gated-item-choice | child pool scan | ...` in the browser console.
-- Scans UUIDs found deeper in the advancement manager object to catch selected-but-not-committed child feature items.
-- Merges duplicate selection subsections that have the same region title/level, so selected and available items for the same region appear together.
-- Adds a name-based fallback for already selected items so they are grouped under their configured region instead of the level where they were selected.
-
-
-## 0.12.3
-
-- Recursively scans selected/granted items for nested child pools, so chains like B grants C grants D can contribute all matching child pools to the parent.
-- Keeps selected and selectable subsections separate while still merging duplicate headers within each mode.
-- Keeps child-pool scan console logs under `level-gated-item-choice | child pool scan | ...`.
